@@ -16,6 +16,7 @@ import EnrolledCourses from "./components/core/Dashboard/EnrolledCourses"
 import Instructor from "./components/core/Dashboard/Instructor"
 import MyCourses from "./components/core/Dashboard/MyCourses"
 import MyProfile from "./components/core/Dashboard/MyProfile"
+import LiveClass from "./components/core/Dashboard/LiveClass"
 import Settings from "./components/core/Dashboard/Settings"
 import VideoDetails from "./components/core/ViewCourse/VideoDetails"
 import About from "./pages/About"
@@ -25,6 +26,7 @@ import CourseDetails from "./pages/CourseDetails"
 import Dashboard from "./pages/Dashboard"
 import Error from "./pages/Error"
 import ForgotPassword from "./pages/ForgotPassword"
+import ChatBot from "./components/Common/ChatBot"
 // Pages
 import Home from "./pages/Home"
 import Login from "./pages/Login"
@@ -57,6 +59,7 @@ function App() {
         <Route path="/contact" element={<Contact />} />
         <Route path="courses/:courseId" element={<CourseDetails />} />
         <Route path="catalog/:catalogName" element={<Catalog />} />
+
         {/* Open Route - for Only Non Logged in User */}
         <Route
           path="login"
@@ -98,6 +101,7 @@ function App() {
             </OpenRoute>
           }
         />
+
         {/* Private Route - for Only Logged in User */}
         <Route
           element={
@@ -108,7 +112,9 @@ function App() {
         >
           {/* Route for all users */}
           <Route path="dashboard/my-profile" element={<MyProfile />} />
+          <Route path="dashboard/LiveClass" element={<LiveClass />} />
           <Route path="dashboard/Settings" element={<Settings />} />
+
           {/* Route only for Instructors */}
           {user?.accountType === ACCOUNT_TYPE.INSTRUCTOR && (
             <>
@@ -121,6 +127,7 @@ function App() {
               />
             </>
           )}
+
           {/* Route only for Students */}
           {user?.accountType === ACCOUNT_TYPE.STUDENT && (
             <>
@@ -131,6 +138,7 @@ function App() {
               <Route path="/dashboard/cart" element={<Cart />} />
             </>
           )}
+
           <Route path="dashboard/settings" element={<Settings />} />
         </Route>
 
@@ -143,18 +151,19 @@ function App() {
           }
         >
           {user?.accountType === ACCOUNT_TYPE.STUDENT && (
-            <>
-              <Route
-                path="view-course/:courseId/section/:sectionId/sub-section/:subSectionId"
-                element={<VideoDetails />}
-              />
-            </>
+            <Route
+              path="view-course/:courseId/section/:sectionId/sub-section/:subSectionId"
+              element={<VideoDetails />}
+            />
           )}
         </Route>
 
         {/* 404 Page */}
         <Route path="*" element={<Error />} />
       </Routes>
+
+      {/* ✅ Show ChatBot only if user is logged in */}
+      {user && <ChatBot />}
     </div>
   )
 }

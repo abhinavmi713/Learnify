@@ -47,7 +47,7 @@ function Navbar() {
       <div className="flex w-11/12 max-w-maxContent items-center justify-between">
         {/* Logo */}
         <Link to="/">
-          <img src={logo} alt="Logo" width={50} height={30} loading="lazy" />
+          <img src={logo} alt="Logo" width={100} height={50} loading="lazy" />
         </Link>
 
         {/* Navigation links */}
