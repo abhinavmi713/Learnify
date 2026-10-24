@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import useConfirm from "../../../../hooks/useConfirm"
 import { useSelector } from "react-redux"
 import { toast } from "react-hot-toast"
 
@@ -63,13 +64,18 @@ export default function ManageCategories() {
     }
   }
 
+  const [confirm, confirmModal] = useConfirm()
+
   const handleDelete = async (categoryId) => {
+    const sure = await confirm({ title: "Delete this category?", body: "This cannot be undone." })
+    if (!sure) return
     const ok = await deleteCategory(categoryId, token)
     if (ok) fetchCategories()
   }
 
   return (
     <div>
+      {confirmModal}
       <h1 className="mb-8 font-display text-3xl font-bold text-richblack-5">Manage Categories</h1>
 
       <form

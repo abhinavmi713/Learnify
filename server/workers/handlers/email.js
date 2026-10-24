@@ -38,7 +38,7 @@ const templates = {
 
   [EVENTS.CONTACT_SUBMITTED]: async ({ email, firstname, lastname, message, phoneNo, countrycode }) => [
     email,
-    "Your Data send successfully",
+    "We received your message",
     contactUsEmail(email, firstname, lastname, message, phoneNo, countrycode),
   ],
 }

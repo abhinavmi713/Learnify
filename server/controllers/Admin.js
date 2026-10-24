@@ -1,4 +1,5 @@
 const Course = require("../models/Course")
+const { totalRevenue: totalRevenueCollected, revenueByMonth } = require("../utils/revenue")
 const { invalidateCatalogCache } = require("../utils/cache")
 const User = require("../models/User")
 const CourseProgress = require("../models/CourseProgress")
@@ -237,16 +238,12 @@ exports.getPlatformAnalytics = async (req, res) => {
 
     const coursesByStatus = { Draft: 0, Pending: 0, Published: 0 }
     let totalEnrollments = 0
-    let totalRevenue = 0
     courses.forEach((course) => {
       if (course.status && coursesByStatus[course.status] !== undefined) {
         coursesByStatus[course.status] += 1
       }
       const enrolled = course.studentsEnroled?.length || 0
       totalEnrollments += enrolled
-      if (course.status === "Published") {
-        totalRevenue += enrolled * (course.price || 0)
-      }
     })
 
     const topCourses = [...courses]
@@ -257,24 +254,14 @@ exports.getPlatformAnalytics = async (req, res) => {
         enrollments: c.studentsEnroled?.length || 0,
       }))
 
-    // Enrollment/revenue trend from CourseProgress creation dates (one per
-    // enrollment event) joined back to the enrolled course's price.
-    const progressRecords = await CourseProgress.find({}, { courseID: 1, createdAt: 1 }).populate(
-      "courseID",
-      "price"
-    )
-
+    // Enrollment trend from CourseProgress creation dates (one per enrollment);
+    // revenue from the payments actually collected (after coupons, no refunds).
+    const progressRecords = await CourseProgress.find({}, { createdAt: 1 })
     const enrollmentTrend = bucketByMonth(progressRecords.map((p) => p.createdAt))
-
-    const revenueByMonth = new Map(enrollmentTrend.map((b) => [b.month, 0]))
-    progressRecords.forEach((p) => {
-      const d = new Date(p.createdAt)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-      if (revenueByMonth.has(key)) {
-        revenueByMonth.set(key, revenueByMonth.get(key) + (p.courseID?.price || 0))
-      }
-    })
-    const revenueTrend = enrollmentTrend.map((b) => ({ month: b.month, amount: revenueByMonth.get(b.month) || 0 }))
+    const [totalRevenue, revenueTrend] = await Promise.all([
+      totalRevenueCollected(),
+      revenueByMonth(enrollmentTrend.map((b) => b.month)),
+    ])
 
     return res.status(200).json({
       success: true,

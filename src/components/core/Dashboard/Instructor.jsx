@@ -5,6 +5,7 @@ import { Link } from "react-router-dom"
 import { fetchInstructorCourses } from "../../../services/operations/courseDetailsAPI"
 import { getInstructorData } from "../../../services/operations/profileAPI"
 import InstructorChart from "./InstructorDashboard/InstructorChart"
+import { formatPrice } from "../../../utils/formatPrice"
 
 export default function Instructor() {
   const { token } = useSelector((state) => state.auth)
@@ -117,7 +118,7 @@ export default function Instructor() {
                         |
                       </p>
                       <p className="text-xs font-medium text-richblack-300">
-                        ₹{course.price}
+                        {formatPrice(course.price)}
                       </p>
                     </div>
                   </div>

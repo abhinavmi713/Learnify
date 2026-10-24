@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom"
 
 import useDebouncedValue from "../../hooks/useDebouncedValue"
 import { searchCourses } from "../../services/operations/searchAPI"
+import { formatPrice } from "../../utils/formatPrice"
 
 // Search input with a live-suggestions dropdown. Submitting (Enter) or
 // clicking a suggestion navigates to the full search results page.
@@ -103,7 +104,7 @@ export default function SearchBar({ onNavigate, autoFocus = false }) {
                   />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm text-richblack-5">{course.courseName}</p>
-                    <p className="text-xs text-richblack-400">₹{course.price}</p>
+                    <p className="text-xs text-richblack-400">{formatPrice(course.price)}</p>
                   </div>
                 </button>
               ))}

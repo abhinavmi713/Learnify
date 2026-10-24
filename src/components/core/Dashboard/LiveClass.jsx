@@ -2,6 +2,9 @@ import { Trash2, Video } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useSelector } from "react-redux"
 
+import LiveClassChat from "../../Common/LiveClassChat"
+import useConfirm from "../../../hooks/useConfirm"
+
 import { fetchInstructorCourses } from "../../../services/operations/courseDetailsAPI"
 import {
   createLiveClass,
@@ -13,6 +16,7 @@ export default function LiveClass() {
   const { token } = useSelector((state) => state.auth)
   const [courses, setCourses] = useState([])
   const [liveClasses, setLiveClasses] = useState(null)
+  const [openChat, setOpenChat] = useState(null)
   const [form, setForm] = useState({
     courseId: "",
     title: "",
@@ -46,13 +50,23 @@ export default function LiveClass() {
     setSubmitting(false)
   }
 
+  const [confirm, confirmModal] = useConfirm()
+
   const handleCancel = async (liveClassId) => {
+    const sure = await confirm({
+      title: "Cancel this live class?",
+      body: "Enrolled students will no longer see it.",
+      confirmText: "Cancel class",
+      cancelText: "Keep it",
+    })
+    if (!sure) return
     const ok = await deleteLiveClass(liveClassId, token)
     if (ok) load()
   }
 
   return (
     <div>
+      {confirmModal}
       <h1 className="mb-8 font-display text-3xl font-bold text-richblack-5">Live Classes</h1>
 
       <form
@@ -122,6 +136,13 @@ export default function LiveClass() {
                     {lc.course?.courseName} · {new Date(lc.scheduledAt).toLocaleString()}
                   </p>
                   {lc.description && <p className="mt-1 text-sm text-richblack-300">{lc.description}</p>}
+                  <button
+                    onClick={() => setOpenChat((id) => (id === lc._id ? null : lc._id))}
+                    className="mt-2 text-sm font-semibold text-yellow-50 hover:underline"
+                  >
+                    {openChat === lc._id ? "Hide chat" : "Open class chat"}
+                  </button>
+                  {openChat === lc._id && <LiveClassChat liveClassId={lc._id} />}
                   <a
                     href={lc.meetingLink}
                     target="_blank"
@@ -132,7 +153,7 @@ export default function LiveClass() {
                   </a>
                 </div>
               </div>
-              <button onClick={() => handleCancel(lc._id)} className="text-richblack-400 hover:text-pink-200">
+              <button onClick={() => handleCancel(lc._id)} aria-label="Cancel live class" className="text-richblack-400 hover:text-pink-200">
                 <Trash2 size={18} />
               </button>
             </div>

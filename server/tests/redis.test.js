@@ -119,12 +119,23 @@ describe("token bucket", () => {
     expect(results[3].retryMs).toBeGreaterThan(0)
   })
 
-  test("refills over time", async () => {
-    const cfg = { capacity: 3, refillPerSec: 10 }
-    for (let i = 0; i < 3; i++) await take("k2", cfg)
-    expect((await take("k2", cfg)).allowed).toBe(false)
-    await new Promise((r) => setTimeout(r, 400)) // 10 tokens/sec -> a few tokens back
-    expect((await take("k2", cfg)).allowed).toBe(true)
+  test("refills over time (deterministic clock, in-memory algorithm)", async () => {
+    setRedisForTests(null)
+    let now = 1_000_000
+    const clock = jest.spyOn(Date, "now").mockImplementation(() => now)
+    try {
+      const cfg = { capacity: 3, refillPerSec: 2 }
+      for (let i = 0; i < 3; i++) expect((await take("k2", cfg)).allowed).toBe(true)
+      const denied = await take("k2", cfg)
+      expect(denied.allowed).toBe(false)
+      expect(denied.retryMs).toBe(500) // one token at 2 tokens/sec
+      now += 499
+      expect((await take("k2", cfg)).allowed).toBe(false)
+      now += 2
+      expect((await take("k2", cfg)).allowed).toBe(true)
+    } finally {
+      clock.mockRestore()
+    }
   })
 
   test("buckets are independent per key", async () => {

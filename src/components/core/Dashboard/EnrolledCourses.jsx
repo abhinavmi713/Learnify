@@ -10,6 +10,7 @@ import useTheme from "../../../hooks/useTheme"
 import { themeColor } from "../../../utils/theme"
 import { getUserEnrolledCourses } from "../../../services/operations/profileAPI"
 import { getRecommendedCourses } from "../../../services/operations/courseDetailsAPI"
+import { formatPrice } from "../../../utils/formatPrice"
 
 export default function EnrolledCourses() {
   const { token } = useSelector((state) => state.auth)
@@ -129,7 +130,7 @@ export default function EnrolledCourses() {
                   <p className="mt-1 text-xs text-richblack-400">
                     {course.instructor?.firstName} {course.instructor?.lastName}
                   </p>
-                  <p className="mt-1 text-sm font-semibold text-yellow-50">₹{course.price}</p>
+                  <p className="mt-1 text-sm font-semibold text-yellow-50">{formatPrice(course.price)}</p>
                 </div>
               </div>
             ))}

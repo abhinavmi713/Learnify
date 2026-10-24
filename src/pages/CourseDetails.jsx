@@ -161,7 +161,7 @@ function CourseDetails() {
               <span className="flex items-center gap-2">
                 <span className="font-bold text-richblack-5">{avgReviewCount}</span>
                 <RatingStars Review_Count={avgReviewCount} Star_Size={18} />
-                <span>{`(${ratingAndReviews.length} reviews)`}</span>
+                <span>{`(${ratingAndReviews.length} ${ratingAndReviews.length === 1 ? "review" : "reviews"})`}</span>
               </span>
               <span>{`${studentsEnroled.length} ${studentsEnroled.length === 1 ? "student" : "students"} enrolled`}</span>
             </div>
@@ -183,18 +183,26 @@ function CourseDetails() {
               <p className="text-3xl font-bold text-richblack-5">
                 {price ? `₹${price}` : "Free"}
               </p>
-              <button className="yellowButton" onClick={handleBuyCourse}>
-                Buy Now
-              </button>
-              <button className="blackButton" onClick={handleAddToCart}>
-                Add to Cart
-              </button>
+              {user && studentsEnroled.some((id) => String(id?._id || id) === String(user._id)) ? (
+                <button className="yellowButton" onClick={() => navigate("/dashboard/enrolled-courses")}>
+                  Go To Course
+                </button>
+              ) : (
+                <>
+                  <button className="yellowButton" onClick={handleBuyCourse}>
+                    {price > 0 ? "Buy Now" : "Enroll for free"}
+                  </button>
+                  <button className="blackButton" onClick={handleAddToCart}>
+                    Add to Cart
+                  </button>
+                </>
+              )}
             </div>
 
             {/* What you will learn */}
             <div className="surface mt-10 p-7">
               <h2 className="font-display text-2xl font-bold">What you&apos;ll learn</h2>
-              <div className="mt-4 text-richblack-200">
+              <div className="mt-4 text-richblack-200 [&_li]:mb-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5">
                 <ReactMarkdown>{whatYouWillLearn}</ReactMarkdown>
               </div>
             </div>

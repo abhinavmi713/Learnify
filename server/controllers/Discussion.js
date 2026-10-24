@@ -1,7 +1,10 @@
 const mongoose = require("mongoose")
 const Discussion = require("../models/Discussion")
 const Course = require("../models/Course")
+const User = require("../models/User")
 const { notifyUser } = require("../utils/notify")
+const { emitToRoom } = require("../realtime")
+const { lectureAccess } = require("../utils/access")
 
 // A question/reply is only meaningful for a course the user is enrolled in
 // OR the instructor who owns it — either can participate in the thread.
@@ -68,6 +71,8 @@ exports.createDiscussion = async (req, res) => {
     }
 
     const populated = await discussion.populate({ path: "user", select: "firstName lastName accountType" })
+    // Everyone else watching this lecture sees the new question/answer live.
+    emitToRoom(`lecture:${subsectionId}`, "discussion:new", populated.toObject())
     return res.status(201).json({ success: true, data: populated })
   } catch (error) {
     console.error(error)
@@ -80,6 +85,14 @@ exports.getDiscussionsForSubsection = async (req, res) => {
     const { subsectionId } = req.query
     if (!subsectionId || !mongoose.isValidObjectId(subsectionId)) {
       return res.status(400).json({ success: false, message: "Invalid subsectionId" })
+    }
+
+    // Reading a lecture's Q&A requires the same access as taking part in it
+    // (previously any logged-in user could read any course's discussion).
+    const viewer = await User.findById(req.user.id).select("accountType")
+    const course = await lectureAccess({ id: req.user.id, accountType: viewer?.accountType }, subsectionId)
+    if (!course) {
+      return res.status(403).json({ success: false, message: "You must be enrolled in this course to view its discussion" })
     }
 
     const all = await Discussion.find({ subsection: subsectionId })
@@ -131,6 +144,10 @@ exports.deleteDiscussion = async (req, res) => {
 
     // Deleting a question also removes its replies so nothing is orphaned.
     await Discussion.deleteMany({ $or: [{ _id: discussionId }, { parent: discussionId }] })
+    emitToRoom(`lecture:${discussion.subsection}`, "discussion:deleted", {
+      id: String(discussion._id),
+      parentId: discussion.parent ? String(discussion.parent) : null,
+    })
     return res.status(200).json({ success: true, message: "Deleted" })
   } catch (error) {
     console.error(error)

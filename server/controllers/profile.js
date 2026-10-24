@@ -1,4 +1,5 @@
 const Profile = require("../models/Profile")
+const { revenueByCourse } = require("../utils/revenue")
 const CourseProgress = require("../models/CourseProgress")
 
 const Course = require("../models/Course")
@@ -217,10 +218,13 @@ exports.getEnrolledCourses = async (req, res) => {
 exports.instructorDashboard = async (req, res) => {
   try {
     const courseDetails = await Course.find({ instructor: req.user.id })
+    // Money actually collected per course (after coupons, excluding refunds),
+    // not list price x students.
+    const collected = await revenueByCourse()
 
     const courseData = courseDetails.map((course) => {
       const totalStudentsEnrolled = course.studentsEnroled.length
-      const totalAmountGenerated = totalStudentsEnrolled * course.price
+      const totalAmountGenerated = collected.get(String(course._id)) || 0
 
       // Create a new object with the additional fields
       const courseDataWithStats = {

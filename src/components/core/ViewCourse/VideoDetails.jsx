@@ -255,14 +255,16 @@ const VideoDetails = () => {
         />
       ) : (
         <div className="relative overflow-hidden rounded-xl">
-          <video
-            key={videoData?._id}
-            ref={videoRef}
-            playsInline
-            className="plyr-video"
-          >
-            <source src={videoData?.videoUrl} type="video/mp4" />
-          </video>
+          {/* Plyr re-parents the <video> into its own wrapper markup. The key
+              lives on this React-owned div so that switching lectures removes
+              the whole div; keyed on the <video> itself, React would try to
+              remove a node Plyr had moved and crash ("removeChild ... not a
+              child of this node"). */}
+          <div key={videoData?._id}>
+            <video ref={videoRef} playsInline className="plyr-video">
+              <source src={videoData?.videoUrl} type="video/mp4" />
+            </video>
+          </div>
           {/* Render When Video Ends */}
           {videoEnded && (
             <div

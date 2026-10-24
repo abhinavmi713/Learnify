@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowUp, Trash2, X } from "lucide-react"
+import useConfirm from "../../../../hooks/useConfirm"
 import { useEffect, useState } from "react"
 import { useSelector } from "react-redux"
 
@@ -70,7 +71,11 @@ export default function ManageLearningPaths() {
     setSubmitting(false)
   }
 
+  const [confirm, confirmModal] = useConfirm()
+
   const handleDelete = async (pathId) => {
+    const sure = await confirm({ title: "Delete this learning path?", body: "This cannot be undone." })
+    if (!sure) return
     const ok = await deleteLearningPath(pathId, token)
     if (ok) load()
   }
@@ -79,6 +84,7 @@ export default function ManageLearningPaths() {
 
   return (
     <div>
+      {confirmModal}
       <h1 className="mb-8 font-display text-3xl font-bold text-richblack-5">Manage Learning Paths</h1>
 
       <form
@@ -181,7 +187,7 @@ export default function ManageLearningPaths() {
                   {path.description ? ` · ${path.description}` : ""}
                 </p>
               </div>
-              <button onClick={() => handleDelete(path._id)} className="text-richblack-400 hover:text-pink-200">
+              <button onClick={() => handleDelete(path._id)} aria-label="Delete learning path" className="text-richblack-400 hover:text-pink-200">
                 <Trash2 size={18} />
               </button>
             </div>

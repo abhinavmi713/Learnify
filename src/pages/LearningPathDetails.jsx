@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 
 import { getLearningPathDetails } from "../services/operations/learningPathAPI"
+import { formatPrice } from "../utils/formatPrice"
 
 export default function LearningPathDetails() {
   const { pathId } = useParams()
@@ -45,7 +46,7 @@ export default function LearningPathDetails() {
                 {course.instructor?.firstName} {course.instructor?.lastName}
               </p>
             </div>
-            <p className="shrink-0 font-semibold text-yellow-50">₹{course.price}</p>
+            <p className="shrink-0 font-semibold text-yellow-50">{formatPrice(course.price)}</p>
           </Link>
         ))}
       </div>

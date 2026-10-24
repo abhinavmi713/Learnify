@@ -6,6 +6,7 @@ const { validateEnv } = require("./config/env");
 const { closeRedis, redisConfigured } = require("./config/redis");
 const rabbit = require("./config/rabbit");
 const relay = require("./events/relay");
+const { initRealtime, closeRealtime } = require("./realtime");
 
 // Fail fast on bad configuration, before anything connects.
 validateEnv();
@@ -47,6 +48,9 @@ const server = app.listen(PORT, () => {
   logger.info(`App is listening at http://localhost:${PORT}`);
 });
 
+// WebSockets share the HTTP server and port.
+initRealtime(server);
+
 // Orchestrators (Docker, PM2, Kubernetes) stop a process with SIGTERM. Finish
 // in-flight requests and close the DB connection instead of dropping them.
 let shuttingDown = false;
@@ -58,6 +62,7 @@ async function shutdown(signal) {
   setTimeout(() => process.exit(1), 10000).unref();
   server.close(async () => {
     relay.stopRelay();
+    await closeRealtime();
     await rabbit.close();
     await mongoose.disconnect();
     await closeRedis();

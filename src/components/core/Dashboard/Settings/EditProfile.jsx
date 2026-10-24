@@ -63,7 +63,7 @@ export default function EditProfile() {
                 type="text"
                 name="lastName"
                 id="lastName"
-                placeholder="Enter first name"
+                placeholder="Enter last name"
                 className="form-style"
                 {...register("lastName", { required: true })}
                 defaultValue={user?.lastName}

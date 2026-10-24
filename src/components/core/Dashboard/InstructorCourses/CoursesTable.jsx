@@ -17,6 +17,7 @@ import {
 } from "../../../../services/operations/courseDetailsAPI"
 import { COURSE_STATUS } from "../../../../utils/constants"
 import ConfirmationModal from "../../../Common/ConfirmationModal"
+import { formatPrice } from "../../../../utils/formatPrice"
 
 export default function CoursesTable({ courses, setCourses }) {
   const navigate = useNavigate()
@@ -122,7 +123,7 @@ export default function CoursesTable({ courses, setCourses }) {
                   2hr 30min
                 </Td>
                 <Td className="text-sm font-medium text-richblack-100">
-                  ₹{course.price}
+                  {formatPrice(course.price)}
                 </Td>
                 <Td className="text-sm font-medium text-richblack-100 ">
                   <button

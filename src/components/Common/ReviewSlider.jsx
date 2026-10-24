@@ -17,7 +17,7 @@ import { Autoplay, FreeMode, Pagination } from "swiper/modules"
 import { apiConnector } from "../../services/apiConnector"
 import { ratingsEndpoints } from "../../services/apis"
 
-function ReviewSlider() {
+function ReviewSlider({ title }) {
   const [reviews, setReviews] = useState([])
   const truncateWords = 15
 
@@ -35,8 +35,12 @@ function ReviewSlider() {
 
   // console.log(reviews)
 
+  // No reviews yet: render nothing rather than an empty carousel under a heading.
+  if (!reviews.length) return null
+
   return (
     <div className="text-richblack-5">
+      {title && <h2 className="section_heading mt-24 text-center">{title}</h2>}
       <div className="my-[50px] h-[184px] max-w-maxContentTab lg:max-w-maxContent">
         <Swiper
           slidesPerView={4}

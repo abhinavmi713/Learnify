@@ -252,8 +252,7 @@ function Home() {
       {/* Instructors + Reviews */}
       <section className="mx-auto w-11/12 max-w-maxContent py-20">
         <InstructorSection />
-        <h2 className="section_heading mt-24 text-center">Reviews from other learners</h2>
-        <ReviewSlider />
+        <ReviewSlider title="Reviews from other learners" />
       </section>
 
       <Footer />

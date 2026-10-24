@@ -2,6 +2,9 @@ import { Bell } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { useSelector } from "react-redux"
 import { useNavigate } from "react-router-dom"
+import { toast } from "react-hot-toast"
+
+import { useSocket, useSocketEvent } from "../../context/SocketContext"
 
 import {
   getMyNotifications,
@@ -33,12 +36,25 @@ export default function NotificationBell() {
     setUnreadCount(unreadCount)
   }
 
+  const { connected } = useSocket()
+
+  // Live updates arrive over the socket; polling is only a fallback for when the
+  // socket is down (and runs once on (re)connect to catch anything missed).
   useEffect(() => {
     fetchNotifications()
+    if (connected) return undefined
     const interval = setInterval(fetchNotifications, 60000)
     return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [connected])
+
+  useSocketEvent("notification:new", (notification) => {
+    setNotifications((prev) =>
+      prev.some((n) => n._id === notification._id) ? prev : [notification, ...prev]
+    )
+    setUnreadCount((c) => c + 1)
+    toast(notification.message, { icon: "🔔", id: `notification-${notification._id}` })
+  })
 
   useEffect(() => {
     const handleClickOutside = (e) => {

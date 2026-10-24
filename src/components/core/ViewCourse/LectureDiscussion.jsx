@@ -1,7 +1,8 @@
-import { MessageSquare, Trash2 } from "lucide-react"
+import { Eye, MessageSquare, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useSelector } from "react-redux"
 
+import { useSocket, useSocketEvent } from "../../../context/SocketContext"
 import { deleteDiscussion, getDiscussions, postDiscussion } from "../../../services/operations/discussionAPI"
 
 function timeAgo(dateString) {
@@ -48,6 +49,42 @@ export default function LectureDiscussion({ courseId, sectionId, subsectionId })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subsectionId])
 
+  // Live Q&A: join this lecture's room so new questions, answers and deletions
+  // from other people appear without a refresh.
+  const { socket, connected } = useSocket()
+  const [watching, setWatching] = useState(0)
+  useEffect(() => {
+    if (!socket || !connected || !subsectionId) return undefined
+    socket.emit("lecture:join", { subsectionId })
+    return () => socket.emit("lecture:leave", { subsectionId })
+  }, [socket, connected, subsectionId])
+
+  useSocketEvent("presence", ({ room, count }) => {
+    if (room === `lecture:${subsectionId}`) setWatching(count)
+  })
+
+  useSocketEvent("discussion:new", (item) => {
+    if (String(item.subsection) !== String(subsectionId)) return
+    setQuestions((prev) => {
+      if (!item.parent) {
+        return prev.some((q) => q._id === item._id) ? prev : [...prev, { ...item, replies: [] }]
+      }
+      return prev.map((q) =>
+        q._id === String(item.parent) && !q.replies.some((r) => r._id === item._id)
+          ? { ...q, replies: [...q.replies, item] }
+          : q
+      )
+    })
+  })
+
+  useSocketEvent("discussion:deleted", ({ id, parentId }) => {
+    setQuestions((prev) =>
+      parentId
+        ? prev.map((q) => ({ ...q, replies: q.replies.filter((r) => r._id !== id) }))
+        : prev.filter((q) => q._id !== id)
+    )
+  })
+
   const handleAskQuestion = async () => {
     if (!newQuestion.trim()) return
     setPosting(true)
@@ -56,7 +93,7 @@ export default function LectureDiscussion({ courseId, sectionId, subsectionId })
       token
     )
     if (created) {
-      setQuestions((prev) => [...prev, { ...created, replies: [] }])
+      setQuestions((prev) => (prev.some((q) => q._id === created._id) ? prev : [...prev, { ...created, replies: [] }]))
       setNewQuestion("")
     }
     setPosting(false)
@@ -71,7 +108,11 @@ export default function LectureDiscussion({ courseId, sectionId, subsectionId })
     )
     if (created) {
       setQuestions((prev) =>
-        prev.map((q) => (q._id === questionId ? { ...q, replies: [...q.replies, created] } : q))
+        prev.map((q) =>
+          q._id === questionId && !q.replies.some((r) => r._id === created._id)
+            ? { ...q, replies: [...q.replies, created] }
+            : q
+        )
       )
       setReplyDrafts((prev) => ({ ...prev, [questionId]: "" }))
       setReplyingTo(null)
@@ -98,6 +139,12 @@ export default function LectureDiscussion({ courseId, sectionId, subsectionId })
         <h3 className="flex items-center gap-2 text-lg font-semibold text-richblack-5">
           <MessageSquare size={18} /> Discussion
         </h3>
+        {connected && watching > 0 && (
+          <span className="flex items-center gap-1 text-xs text-richblack-300" title="People viewing this lecture now">
+            <span className="h-2 w-2 rounded-full bg-caribbeangreen-100" />
+            <Eye size={14} /> {watching} watching now
+          </span>
+        )}
       </div>
 
       <div className="mb-5 flex flex-col gap-2">

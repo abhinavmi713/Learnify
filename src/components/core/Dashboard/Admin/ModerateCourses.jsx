@@ -9,6 +9,7 @@ import {
   restoreCourse,
 } from "../../../../services/operations/adminAPI"
 import Pagination from "../../../Common/Pagination"
+import { formatPrice } from "../../../../utils/formatPrice"
 
 const TABS = [
   { key: "pending", label: "Pending review" },
@@ -116,7 +117,7 @@ export default function ModerateCourses() {
                   <p className="text-lg font-semibold text-richblack-5">{course.courseName}</p>
                   <p className="text-sm text-richblack-300">
                     By {course.instructor?.firstName} {course.instructor?.lastName} ·{" "}
-                    {course.category?.name || "Uncategorized"} · ₹{course.price}
+                    {course.category?.name || "Uncategorized"} · {formatPrice(course.price)}
                     {tab === "archived" && course.deletedAt
                       ? ` · deleted ${new Date(course.deletedAt).toLocaleDateString()}`
                       : ""}

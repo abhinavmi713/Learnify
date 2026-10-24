@@ -2,11 +2,14 @@ import { Video } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useSelector } from "react-redux"
 
+import LiveClassChat from "../../Common/LiveClassChat"
+
 import { getStudentLiveClasses } from "../../../services/operations/liveClassAPI"
 
 export default function StudentLiveClasses() {
   const { token } = useSelector((state) => state.auth)
   const [liveClasses, setLiveClasses] = useState(null)
+  const [openChat, setOpenChat] = useState(null)
 
   useEffect(() => {
     getStudentLiveClasses(token).then(setLiveClasses)
@@ -38,6 +41,13 @@ export default function StudentLiveClasses() {
           {lc.course?.courseName} · {new Date(lc.scheduledAt).toLocaleString()}
         </p>
         {lc.description && <p className="mt-1 text-sm text-richblack-300">{lc.description}</p>}
+        <button
+          onClick={() => setOpenChat((id) => (id === lc._id ? null : lc._id))}
+          className="mt-2 text-sm font-semibold text-yellow-50 hover:underline"
+        >
+          {openChat === lc._id ? "Hide chat" : "Open class chat"}
+        </button>
+        {openChat === lc._id && <LiveClassChat liveClassId={lc._id} />}
       </div>
       {new Date(lc.scheduledAt).getTime() >= now && (
         <a

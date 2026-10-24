@@ -9,6 +9,7 @@
 		"test": "jest --runInBand --forceExit",
 		"create-admin": "node scripts/createAdmin.js",
 		"outbox:status": "node scripts/outboxStatus.js",
+		"seed:demo": "node scripts/seedDemo.js",
 		"worker": "node workers/index.js",
 		"db:copy": "node scripts/copyDb.js",
 		"backup": "node scripts/backup.js"
@@ -21,6 +22,8 @@
 	"dependencies": {
 		"@google/generative-ai": "^0.24.1",
 		"@sentry/node": "^11.4.0",
+		"@socket.io/redis-adapter": "^8.3.0",
+		"@socket.io/redis-emitter": "^5.1.0",
 		"amqplib": "^2.2.0",
 		"bcryptjs": "^2.4.3",
 		"cloudinary": "^2.11.0",
@@ -45,6 +48,7 @@
 		"pino": "^10.3.1",
 		"pino-http": "^11.0.0",
 		"razorpay": "^2.8.6",
+		"socket.io": "^4.8.4",
 		"uuid": "^14.0.2",
 		"zod": "^4.6.5"
 	},
@@ -54,6 +58,7 @@
 		"jest": "^30.5.1",
 		"mongodb-memory-server": "^11.2.0",
 		"nodemon": "^3.1.14",
+		"socket.io-client": "^4.8.4",
 		"supertest": "^7.2.2"
 	}
 }

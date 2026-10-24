@@ -49,7 +49,7 @@ router.post("/chat", chatbotLimiter, auth, chatBucket, async (req, res) => {
 
   try {
     const courseContext = await buildCourseContext(courseId)
-    const prompt = `You are a helpful educational assistant for a learning platform called Learnify. Answer the following question in a friendly and informative way.${courseContext}\n\nQuestion: ${message}`
+    const prompt = `You are a helpful educational assistant for a learning platform called Learnify. Answer the student's question clearly and concisely in a friendly tone. Do not greet them or introduce yourself; answer directly.${courseContext}\n\nQuestion: ${message}`
 
     const reply = await callGemini(prompt)
     res.json({ success: true, reply });
