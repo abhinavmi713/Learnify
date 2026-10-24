@@ -1,0 +1,44 @@
+import React from "react"
+// Import Swiper React components
+import { Swiper, SwiperSlide } from "swiper/react"
+
+// Import Swiper styles
+import "swiper/css"
+import "swiper/css/free-mode"
+import "swiper/css/pagination"
+// import "../../.."
+// Import required modules
+import { FreeMode, Pagination } from "swiper/modules"
+
+// import { getAllCourses } from "../../services/operations/courseDetailsAPI"
+import CourseCard from "./Course_Card"
+
+function Course_Slider({ Courses }) {
+  return (
+    <>
+      {Courses?.length ? (
+        <Swiper
+          slidesPerView={1}
+          spaceBetween={25}
+          modules={[FreeMode, Pagination]}
+          breakpoints={{
+            1024: {
+              slidesPerView: 4,
+            },
+          }}
+          className="!pb-2"
+        >
+          {Courses?.map((course, i) => (
+            <SwiperSlide key={i}>
+              <CourseCard course={course} Height={"h-[170px]"} />
+            </SwiperSlide>
+          ))}
+        </Swiper>
+      ) : (
+        <p className="text-richblack-300">No courses found.</p>
+      )}
+    </>
+  )
+}
+
+export default Course_Slider

@@ -1,0 +1,59 @@
+{
+	"name": "learnify-backend",
+	"version": "1.0.0",
+	"description": "Learnify backend API",
+	"main": "index.js",
+	"scripts": {
+		"start": "node index.js",
+		"dev": "nodemon index.js",
+		"test": "jest --runInBand --forceExit",
+		"create-admin": "node scripts/createAdmin.js",
+		"outbox:status": "node scripts/outboxStatus.js",
+		"worker": "node workers/index.js",
+		"db:copy": "node scripts/copyDb.js",
+		"backup": "node scripts/backup.js"
+	},
+	"keywords": [
+		"learnify-backend"
+	],
+	"author": "Abhinav Kumar",
+	"license": "ISC",
+	"dependencies": {
+		"@google/generative-ai": "^0.24.1",
+		"@sentry/node": "^11.4.0",
+		"amqplib": "^2.2.0",
+		"bcryptjs": "^2.4.3",
+		"cloudinary": "^2.11.0",
+		"cookie-parser": "^1.4.6",
+		"cors": "^2.8.5",
+		"crypto-random-string": "^5.0.0",
+		"dotenv": "^16.0.3",
+		"express": "^4.18.2",
+		"express-fileupload": "^1.4.0",
+		"express-rate-limit": "^8.7.0",
+		"helmet": "^8.3.0",
+		"ioredis": "^5.11.1",
+		"jsonwebtoken": "^9.0.0",
+		"mongoose": "^7.0.3",
+		"node-cache": "^5.1.2",
+		"node-fetch": "^3.3.2",
+		"node-schedule": "^2.1.1",
+		"nodemailer": "^10.0.15",
+		"opossum": "^10.0.0",
+		"otp-generator": "^4.0.1",
+		"pdf-lib": "^1.17.1",
+		"pino": "^10.3.1",
+		"pino-http": "^11.0.0",
+		"razorpay": "^2.8.6",
+		"uuid": "^14.0.2",
+		"zod": "^4.6.5"
+	},
+	"devDependencies": {
+		"autocannon": "^8.0.0",
+		"ioredis-mock": "^8.13.1",
+		"jest": "^30.5.1",
+		"mongodb-memory-server": "^11.2.0",
+		"nodemon": "^3.1.14",
+		"supertest": "^7.2.2"
+	}
+}
