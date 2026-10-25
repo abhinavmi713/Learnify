@@ -12,7 +12,7 @@ const { startConsumer } = require("./consumer")
 
 function buildServices(config) {
   const gemini = createGemini({ apiKey: config.GEMINI_API_KEY, embedModel: config.EMBED_MODEL, embedDim: config.EMBED_DIM, genModel: config.GEN_MODEL })
-  const qdrant = createQdrant({ url: config.QDRANT_URL, collection: config.QDRANT_COLLECTION, dim: config.EMBED_DIM })
+  const qdrant = createQdrant({ url: config.QDRANT_URL, collection: config.QDRANT_COLLECTION, dim: config.EMBED_DIM, apiKey: config.QDRANT_API_KEY })
   const fetchCourse = createCourseFetcher({ apiInternalUrl: config.API_INTERNAL_URL, token: config.INTERNAL_API_TOKEN })
   const indexer = createIndexer({ fetchCourse, gemini, qdrant })
   const rag = createRag({ gemini, qdrant, topK: config.TOP_K, minScore: config.MIN_SCORE })

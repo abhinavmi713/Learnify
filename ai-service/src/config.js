@@ -19,6 +19,8 @@ const schema = z.object({
 
   QDRANT_URL: z.string().url().default("http://127.0.0.1:6333"),
   QDRANT_COLLECTION: z.string().default("course_chunks"),
+  // Qdrant Cloud API key (not needed for the local container).
+  QDRANT_API_KEY: z.string().optional().transform((v) => v || undefined),
 
   RABBITMQ_URL: z.string().optional().transform((v) => v || undefined),
 

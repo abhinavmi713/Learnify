@@ -1,7 +1,7 @@
 import { toast } from "react-hot-toast"
 
 import rzpLogo from "../../assets/Logo/rzp_logo.png"
-import { resetCart } from "../../slices/cartSlice"
+import { removeCourses } from "../../slices/cartSlice"
 import { setPaymentLoading } from "../../slices/courseSlice"
 import { apiConnector } from "../apiConnector"
 import { idempotencyKey } from "../../utils/idempotencyKey"
@@ -63,7 +63,9 @@ export async function BuyCourse(
     if (orderResponse.data.freeEnrollment) {
       toast.success("Enrolled successfully!")
       navigate("/dashboard/enrolled-courses")
-      dispatch(resetCart())
+      // Only the purchased courses leave the cart ("Buy now" on one course
+      // used to empty the whole cart).
+      dispatch(removeCourses(courses))
       toast.dismiss(toastId)
       return
     }
@@ -129,7 +131,7 @@ async function verifyPayment(bodyData, token, navigate, dispatch) {
 
     toast.success("Payment Successful. You are Added to the course ")
     navigate("/dashboard/enrolled-courses")
-    dispatch(resetCart())
+    dispatch(removeCourses(bodyData.courses))
   } catch (error) {
     console.log("PAYMENT VERIFY ERROR............", error)
     toast.error("Could Not Verify Payment.")

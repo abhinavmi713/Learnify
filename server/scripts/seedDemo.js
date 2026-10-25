@@ -3,8 +3,10 @@
 //   node scripts/seedDemo.js           add the demo data (safe to re-run)
 //   node scripts/seedDemo.js --clean   remove exactly what this script added
 //
-// Uses the demo instructor (instructor@learnify.com) and Cloudinary's public
-// demo media, so no uploads are needed. Re-running skips anything that exists.
+// On a fresh database it first creates the demo accounts (admin@, instructor@
+// and student@learnify.com, password DEMO_PASSWORD or "Learnify@123") and the
+// categories. Uses Cloudinary's public demo media, so no uploads are needed.
+// Re-running skips anything that exists. Refuses to run with NODE_ENV=production.
 require("dotenv").config()
 const mongoose = require("mongoose")
 
@@ -104,9 +106,31 @@ const TRANSCRIPTS = {
     "An image is a read-only template and a container is a running instance of an image. Run your first container with docker run hello-world. The -p flag maps ports, so -p 8080:80 sends traffic from port 8080 on your machine to port 80 in the container. Use docker ps to list running containers and docker logs to read their output. Containers are disposable: store data you want to keep in a volume.",
 }
 
+const DEMO_ACCOUNTS = [
+  { email: "admin@learnify.com", firstName: "Admin", lastName: "User", accountType: "Admin" },
+  { email: "instructor@learnify.com", firstName: "Instructor", lastName: "User", accountType: "Instructor" },
+  { email: "student@learnify.com", firstName: "Student", lastName: "User", accountType: "Student" },
+]
+const CATEGORIES = ["Web Development", "Data Science", "Mobile Development", "Cloud Computing", "Cybersecurity", "Programming Languages"]
+
+async function ensureDemoAccounts() {
+  const bcrypt = require("bcryptjs")
+  const Profile = require("../models/Profile")
+  const password = await bcrypt.hash(process.env.DEMO_PASSWORD || "Learnify@123", 10)
+  for (const account of DEMO_ACCOUNTS) {
+    if (await User.exists({ email: account.email })) continue
+    const profile = await Profile.create({})
+    await User.create({ ...account, password, additionalDetails: profile._id, image: `https://api.dicebear.com/5.x/initials/svg?seed=${account.firstName} ${account.lastName}` })
+    console.log(`account: ${account.email} (${account.accountType})`)
+  }
+  for (const name of CATEGORIES) {
+    if (!(await Category.exists({ name }))) await Category.create({ name, description: `${name} courses` })
+  }
+}
+
 async function seed() {
+  await ensureDemoAccounts()
   const instructor = await User.findOne({ email: "instructor@learnify.com" })
-  if (!instructor) throw new Error("Demo instructor not found (instructor@learnify.com)")
   const admin = await User.findOne({ accountType: "Admin" })
 
   const created = []
@@ -210,6 +234,7 @@ async function clean() {
 }
 
 async function main() {
+  if (process.env.NODE_ENV === "production") throw new Error("Refusing to seed demo data with NODE_ENV=production")
   await mongoose.connect(process.env.MONGODB_URL)
   try {
     if (process.argv.includes("--clean")) await clean()

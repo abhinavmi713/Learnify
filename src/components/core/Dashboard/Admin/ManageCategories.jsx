@@ -11,6 +11,13 @@ import {
   updateCategory,
 } from "../../../../services/operations/adminAPI"
 
+// Live (published) courses, plus drafts and courses in review when there are any.
+const courseCountLabel = (c) => {
+  const live = c.courseCount ?? c.courses?.length ?? 0
+  const other = (c.totalCourses ?? live) - live
+  return other > 0 ? `${live} live, ${other} in progress` : String(live)
+}
+
 export default function ManageCategories() {
   const { token } = useSelector((state) => state.auth)
   const [categories, setCategories] = useState([])
@@ -135,7 +142,7 @@ export default function ManageCategories() {
                           className="form-style"
                         />
                       </td>
-                      <td className="p-3">{c.courses?.length || 0}</td>
+                      <td className="p-3">{courseCountLabel(c)}</td>
                       <td className="p-3 flex gap-3">
                         <button
                           onClick={() => handleUpdate(c._id)}
@@ -155,7 +162,7 @@ export default function ManageCategories() {
                     <>
                       <td className="p-3 font-semibold">{c.name}</td>
                       <td className="p-3 text-richblack-300">{c.description || "—"}</td>
-                      <td className="p-3">{c.courses?.length || 0}</td>
+                      <td className="p-3">{courseCountLabel(c)}</td>
                       <td className="p-3 flex gap-3">
                         <button
                           onClick={() => startEdit(c)}
@@ -165,8 +172,8 @@ export default function ManageCategories() {
                         </button>
                         <button
                           onClick={() => handleDelete(c._id)}
-                          disabled={c.courses?.length > 0}
-                          title={c.courses?.length > 0 ? "Remove all courses from this category first" : ""}
+                          disabled={(c.totalCourses ?? c.courses?.length) > 0}
+                          title={(c.totalCourses ?? c.courses?.length) > 0 ? "Move or archive this category's courses first" : ""}
                           className="text-pink-200 hover:underline disabled:cursor-not-allowed disabled:text-richblack-300"
                         >
                           Delete

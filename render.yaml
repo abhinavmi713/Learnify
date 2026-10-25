@@ -1,0 +1,111 @@
+# Render blueprint: New > Blueprint > pick this repository.
+# Creates the API, the background worker and the AI service. Secrets are
+# marked sync: false, so Render asks for them when the blueprint is applied.
+# Full guide: docs/DEPLOYMENT.md
+envVarGroups:
+  - name: learnify-backend
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "1"
+      - key: CLIENT_URL
+        sync: false
+      - key: MONGODB_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: INTERNAL_API_TOKEN
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: RABBITMQ_URL
+        sync: false
+      - key: ELASTICSEARCH_URL
+        sync: false
+      - key: ELASTICSEARCH_API_KEY
+        sync: false
+      - key: MAIL_HOST
+        sync: false
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_USER
+        sync: false
+      - key: MAIL_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: RAZORPAY_KEY
+        sync: false
+      - key: RAZORPAY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: CLOUD_NAME
+        sync: false
+      - key: API_KEY
+        sync: false
+      - key: API_SECRET
+        sync: false
+      - key: FOLDER_NAME
+        value: Learnify
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: METRICS_TOKEN
+        generateValue: true
+      - key: SENTRY_DSN
+        sync: false
+
+services:
+  - type: web
+    name: learnify-api
+    runtime: docker
+    rootDir: server
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: learnify-backend
+      # Consumers run in the worker service, not inside the API.
+      - key: RUN_WORKER_IN_API
+        value: "0"
+      - key: AI_SERVICE_URL
+        fromService:
+          type: web
+          name: learnify-ai
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: worker
+    name: learnify-worker
+    runtime: docker
+    rootDir: server
+    dockerfilePath: ./Dockerfile
+    dockerCommand: node workers/index.js
+    envVars:
+      - fromGroup: learnify-backend
+      # The worker also relays the outbox; the API keeps its relay as a backup.
+      - key: WORKER_METRICS_PORT
+        value: "0"
+
+  - type: web
+    name: learnify-ai
+    runtime: docker
+    rootDir: ai-service
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: INTERNAL_API_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: RABBITMQ_URL
+        sync: false
+      - key: API_INTERNAL_URL
+        sync: false

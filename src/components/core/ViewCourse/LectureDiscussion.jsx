@@ -158,7 +158,8 @@ export default function LectureDiscussion({ courseId, sectionId, subsectionId })
         <button
           onClick={handleAskQuestion}
           disabled={posting || !newQuestion.trim()}
-          className="w-fit self-end rounded-lg bg-yellow-50 px-3 py-1.5 text-sm font-semibold text-richblack-900 hover:bg-yellow-100 disabled:cursor-not-allowed disabled:opacity-50"
+          // Left-aligned on phones: the floating assistant button sits bottom-right.
+          className="w-fit self-start rounded-lg bg-yellow-50 sm:self-end px-3 py-1.5 text-sm font-semibold text-richblack-900 hover:bg-yellow-100 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {posting ? "Posting..." : "Post Question"}
         </button>

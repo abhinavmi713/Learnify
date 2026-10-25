@@ -38,7 +38,8 @@ export default function ViewCourse() {
 
   return (
     <>
-      <div className="mx-auto flex w-11/12 max-w-[1400px] flex-col gap-6 py-6 lg:flex-row lg:items-start">
+      {/* Extra bottom space on phones so the last content scrolls clear of the floating assistant button. */}
+      <div className="mx-auto flex w-11/12 max-w-[1400px] flex-col gap-6 pb-24 pt-6 sm:pb-6 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1">
           <Outlet />
         </div>

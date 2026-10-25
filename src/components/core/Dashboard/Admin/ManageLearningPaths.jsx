@@ -4,7 +4,9 @@ import { useEffect, useState } from "react"
 import { useSelector } from "react-redux"
 
 import Pagination from "../../../Common/Pagination"
+import useDebouncedValue from "../../../../hooks/useDebouncedValue"
 import { getAllCourses } from "../../../../services/operations/courseDetailsAPI"
+import { suggestCourses } from "../../../../services/operations/searchAPI"
 import {
   createLearningPath,
   deleteLearningPath,
@@ -14,7 +16,14 @@ import {
 export default function ManageLearningPaths() {
   const { token } = useSelector((state) => state.auth)
   const [paths, setPaths] = useState(null)
-  const [allCourses, setAllCourses] = useState([])
+  // Course picker: type to search every published course (the old dropdown
+  // could only list one page of courses). Names of picked courses are kept so
+  // the ordered list can show them.
+  const [query, setQuery] = useState("")
+  const debouncedQuery = useDebouncedValue(query, 200)
+  const [newest, setNewest] = useState([])
+  const [matches, setMatches] = useState([])
+  const [names, setNames] = useState({})
   const [form, setForm] = useState({ title: "", description: "" })
   const [selectedCourseIds, setSelectedCourseIds] = useState([])
   const [submitting, setSubmitting] = useState(false)
@@ -28,8 +37,7 @@ export default function ManageLearningPaths() {
   }
 
   useEffect(() => {
-    // The 100 newest courses (the endpoint is paginated).
-    getAllCourses({ limit: 100 }).then((c) => setAllCourses(c || []))
+    getAllCourses({ limit: 8 }).then((c) => setNewest(c || []))
   }, [])
 
   useEffect(() => {
@@ -37,8 +45,24 @@ export default function ManageLearningPaths() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page])
 
-  const addCourse = (courseId) => {
+  useEffect(() => {
+    const q = debouncedQuery.trim()
+    if (!q) {
+      setMatches([])
+      return undefined
+    }
+    let cancelled = false
+    suggestCourses(q).then((rows) => !cancelled && setMatches(rows))
+    return () => {
+      cancelled = true
+    }
+  }, [debouncedQuery])
+
+  const addCourse = (course) => {
+    const courseId = course?._id
     if (!courseId || selectedCourseIds.includes(courseId)) return
+    setNames((prev) => ({ ...prev, [courseId]: course.courseName }))
+    setQuery("")
     setSelectedCourseIds((prev) => [...prev, courseId])
   }
 
@@ -81,7 +105,7 @@ export default function ManageLearningPaths() {
     if (ok) load()
   }
 
-  const courseById = (id) => allCourses.find((c) => c._id === id)
+  const options = (debouncedQuery.trim() ? matches : newest).filter((c) => !selectedCourseIds.includes(c._id))
 
   return (
     <div>
@@ -109,16 +133,28 @@ export default function ManageLearningPaths() {
 
         <div>
           <label className="mb-1 block text-xs text-richblack-300">Add a course to the path</label>
-          <select onChange={(e) => addCourse(e.target.value)} value="" className="form-style w-full sm:w-96">
-            <option value="">Select a course to add</option>
-            {allCourses
-              .filter((c) => !selectedCourseIds.includes(c._id))
-              .map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.courseName}
-                </option>
-              ))}
-          </select>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search courses by name"
+            className="form-style w-full sm:w-96"
+          />
+          <div className="mt-2 flex flex-wrap gap-2">
+            {!query.trim() && options.length > 0 && <span className="w-full text-xs text-richblack-400">Newest courses:</span>}
+            {options.map((c) => (
+              <button
+                key={c._id}
+                type="button"
+                onClick={() => addCourse(c)}
+                className="rounded-full border border-richblack-600 px-3 py-1 text-xs text-richblack-50 hover:border-yellow-50 hover:text-yellow-50"
+              >
+                + {c.courseName}
+              </button>
+            ))}
+            {query.trim() && debouncedQuery === query && options.length === 0 && (
+              <span className="text-xs text-richblack-400">No published course matches "{query.trim()}"</span>
+            )}
+          </div>
         </div>
 
         {selectedCourseIds.length > 0 && (
@@ -129,7 +165,7 @@ export default function ManageLearningPaths() {
                 className="flex items-center justify-between rounded-lg border border-richblack-600 bg-richblack-900 px-3 py-2"
               >
                 <span className="text-sm text-richblack-100">
-                  {index + 1}. {courseById(id)?.courseName || id}
+                  {index + 1}. {names[id] || id}
                 </span>
                 <div className="flex items-center gap-2">
                   <button

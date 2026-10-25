@@ -1,9 +1,10 @@
 // Minimal Qdrant REST client for the one collection this service owns.
-function createQdrant({ url, collection, dim }) {
+// `apiKey` is required by Qdrant Cloud; a local container needs none.
+function createQdrant({ url, collection, dim, apiKey }) {
   async function call(method, path, body) {
     const res = await fetch(`${url}${path}`, {
       method,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(apiKey ? { "api-key": apiKey } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     })
     const data = await res.json().catch(() => ({}))

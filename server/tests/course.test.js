@@ -1,3 +1,4 @@
+const mongoose = require("mongoose")
 const request = require("supertest")
 const app = require("../app")
 const Course = require("../models/Course")
@@ -130,5 +131,25 @@ describe("deleting a course is a soft delete", () => {
       .get("/api/v1/course/getInstructorCourses")
       .set("Authorization", `Bearer ${tokenFor(owner)}`)
     expect(instructorRes.body.data.find((c) => c._id === course._id.toString())).toBeUndefined()
+  })
+})
+
+describe("category course counts", () => {
+  test("counts come from live courses, not the category's stored id list", async () => {
+    const Category = require("../models/Category")
+    const instructor = await createUser({ email: "cat-ins@example.com", accountType: "Instructor" })
+    const category = await Category.create({ name: "Counting", description: "d" })
+    const live = await createCourse(instructor._id, { status: "Published", category: category._id })
+    const draft = await createCourse(instructor._id, { status: "Draft", category: category._id })
+    const archived = await createCourse(instructor._id, { status: "Published", category: category._id, deletedAt: new Date() })
+    // The stored list also points at a course that no longer exists.
+    await Category.updateOne(
+      { _id: category._id },
+      { $set: { courses: [live._id, draft._id, archived._id, new mongoose.Types.ObjectId()] } }
+    )
+
+    const res = await request(app).get("/api/v1/course/showAllCategories")
+    const row = res.body.data.find((c) => c.name === "Counting")
+    expect(row).toMatchObject({ courseCount: 1, totalCourses: 2, courses: [String(live._id)] })
   })
 })

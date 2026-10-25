@@ -1,3 +1,4 @@
+const Course = require("../models/Course")
 // const Category = require("../models/Category")
 const { invalidateCatalogCache } = require("../utils/cache")
 
@@ -152,12 +153,34 @@ exports.createCategory = async (req, res) => {
 };
 
 // Get all categories
+// Counts come from the courses themselves, not from each category's stored
+// `courses` array: that array kept ids of deleted, archived, draft and
+// unpublished courses, so menus and the admin page showed inflated counts.
+//   courses       ids of live (published, not archived) courses, for existing clients
+//   courseCount   number of live courses
+//   totalCourses  courses still assigned (any status except archived), for the delete guard
 exports.showAllCategories = async (req, res) => {
   try {
-    const allCategories = await Category.find();
+    const [allCategories, counts] = await Promise.all([
+      Category.find().lean(),
+      Course.aggregate([
+        { $match: { category: { $ne: null }, deletedAt: null } },
+        {
+          $group: {
+            _id: "$category",
+            total: { $sum: 1 },
+            live: { $push: { $cond: [{ $eq: ["$status", "Published"] }, "$_id", "$$REMOVE"] } },
+          },
+        },
+      ]),
+    ]);
+    const byCategory = new Map(counts.map((c) => [String(c._id), c]));
     res.status(200).json({
       success: true,
-      data: allCategories,
+      data: allCategories.map((category) => {
+        const c = byCategory.get(String(category._id));
+        return { ...category, courses: c?.live || [], courseCount: c?.live.length || 0, totalCourses: c?.total || 0 };
+      }),
     });
   } catch (error) {
     return res.status(500).json({
@@ -211,7 +234,7 @@ exports.deleteCategory = async (req, res) => {
       return res.status(404).json({ success: false, message: "Category not found" })
     }
 
-    if (category.courses.length > 0) {
+    if (await Course.exists({ category: category._id, deletedAt: null })) {
       return res.status(400).json({
         success: false,
         message: "Cannot delete a category that still has courses assigned to it",

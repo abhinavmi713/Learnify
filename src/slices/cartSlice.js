@@ -62,6 +62,20 @@ const cartSlice = createSlice({
         toast.success("Course removed from cart")
       }
     },
+    // Silently drops the given courses (just bought, or already owned), keeping
+    // everything else in the cart.
+    removeCourses: (state, action) => {
+      const ids = new Set((action.payload || []).map(String))
+      const kept = state.cart.filter((item) => !ids.has(String(item._id)))
+      if (kept.length === state.cart.length) return
+      state.cart = kept
+      state.totalItems = kept.length
+      state.total = kept.reduce((sum, item) => sum + (item.price || 0), 0)
+      state.appliedCoupon = null
+      localStorage.setItem("cart", JSON.stringify(state.cart))
+      localStorage.setItem("total", JSON.stringify(state.total))
+      localStorage.setItem("totalItems", JSON.stringify(state.totalItems))
+    },
     resetCart: (state) => {
       state.cart = []
       state.total = 0
@@ -84,6 +98,7 @@ const cartSlice = createSlice({
 export const {
   addToCart,
   removeFromCart,
+  removeCourses,
   resetCart,
   setAppliedCoupon,
   clearAppliedCoupon,
