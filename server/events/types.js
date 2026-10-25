@@ -8,6 +8,10 @@ const EVENTS = {
   ORDER_PAID: "order.paid",
   COURSE_COMPLETED: "course.completed",
   COURSE_CONTENT_CHANGED: "course.content_changed",
+  COURSE_PUBLISHED: "course.published",
+  COURSE_REJECTED: "course.rejected",
+  REVIEW_CREATED: "review.created",
+  WEBHOOK_DELIVERY_REQUESTED: "webhook.delivery_requested",
   CONTACT_SUBMITTED: "contact.submitted",
   PAYMENT_REFUND_REQUESTED: "payment.refund_requested",
 }

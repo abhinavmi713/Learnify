@@ -1,0 +1,25 @@
+# Prometheus scrape config for local development (docker compose --profile observability).
+# The API and worker run on the host, so they are reached through host.docker.internal.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: learnify-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:4000"]
+
+  - job_name: learnify-worker
+    static_configs:
+      - targets: ["host.docker.internal:9464"]
+
+  # RabbitMQ's built-in exporter (rabbitmq_prometheus plugin): queue depth,
+  # consumers, publish/deliver rates. Better than re-implementing it in the app.
+  - job_name: rabbitmq
+    metrics_path: /metrics/per-object
+    static_configs:
+      - targets: ["rabbitmq:15692"]

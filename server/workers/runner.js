@@ -1,4 +1,5 @@
 const ProcessedEvent = require("../models/ProcessedEvent")
+const { eventsProcessed, eventProcessingDuration } = require("../utils/metrics")
 
 // Runs one consumer's handler for one event, exactly-once in effect.
 //
@@ -10,11 +11,24 @@ const ProcessedEvent = require("../models/ProcessedEvent")
 // after the handler (before the marker) repeats the side effect on redelivery;
 // for an email that is an acceptable duplicate, and the handlers are written so
 // repeats are harmless where it matters (e.g. a refund checks its own status).
-async function processEvent(consumer, event) {
+// `meta` ({ attempt, finalAttempt }) comes from the broker's retry headers.
+async function processEvent(consumer, event, meta = {}) {
   const done = await ProcessedEvent.exists({ consumer: consumer.name, eventId: event.id })
-  if (done) return { skipped: true }
+  if (done) {
+    eventsProcessed.inc({ consumer: consumer.name, outcome: "duplicate" })
+    return { skipped: true }
+  }
 
-  await consumer.handler(event)
+  const end = eventProcessingDuration.startTimer({ consumer: consumer.name })
+  try {
+    await consumer.handler(event, meta)
+  } catch (error) {
+    eventsProcessed.inc({ consumer: consumer.name, outcome: "failure" })
+    throw error
+  } finally {
+    end()
+  }
+  eventsProcessed.inc({ consumer: consumer.name, outcome: "success" })
 
   try {
     await ProcessedEvent.create({ consumer: consumer.name, eventId: event.id })

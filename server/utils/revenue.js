@@ -3,7 +3,9 @@ const PaymentRecord = require("../models/PaymentRecord")
 
 // Revenue is what was actually collected (PaymentRecord.amount, after coupons),
 // not list price x students. Refunded or refund-pending orders do not count.
-const COLLECTED = { status: { $in: ["fulfilled", null] } }
+// (Plain equality, not $in with null: matching null forces MongoDB to fetch
+// every document, so the {status, createdAt, amount} index could not cover it.)
+const COLLECTED = { status: "fulfilled" }
 
 // Splits each order's amount across the courses it contained, in proportion to
 // their list prices (an order with a coupon pays less for every course in it).
@@ -36,7 +38,8 @@ async function totalRevenue() {
 
 // Collected revenue per month for the given month keys ("YYYY-MM").
 async function revenueByMonth(monthKeys) {
-  const records = await PaymentRecord.find(COLLECTED, { amount: 1, createdAt: 1 }).lean()
+  // Covered by the {status, createdAt, amount} index: no documents are read.
+  const records = await PaymentRecord.find(COLLECTED, { _id: 0, amount: 1, createdAt: 1 }).lean()
   const byMonth = new Map(monthKeys.map((k) => [k, 0]))
   for (const r of records) {
     const d = new Date(r.createdAt)

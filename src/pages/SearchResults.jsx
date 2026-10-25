@@ -8,6 +8,9 @@ import { categories } from "../services/apis"
 import { searchCourses } from "../services/operations/searchAPI"
 
 const SORT_OPTIONS = [
+  // Empty = server default: best match when searching, newest when browsing.
+  { value: "", label: "Best match" },
+  { value: "popular", label: "Most popular" },
   { value: "newest", label: "Newest" },
   { value: "priceLowHigh", label: "Price: Low to High" },
   { value: "priceHighLow", label: "Price: High to Low" },
@@ -25,11 +28,14 @@ export default function SearchResults() {
   const [minPrice, setMinPrice] = useState("")
   const [maxPrice, setMaxPrice] = useState("")
   const [minRating, setMinRating] = useState("")
-  const [sortBy, setSortBy] = useState("newest")
+  const [sortBy, setSortBy] = useState("")
   const [page, setPage] = useState(1)
 
   const [results, setResults] = useState([])
   const [pagination, setPagination] = useState({ total: 0, pages: 0 })
+  // From Elasticsearch: course counts per category, and a spelling suggestion.
+  const [categoryCounts, setCategoryCounts] = useState(null)
+  const [didYouMean, setDidYouMean] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -52,7 +58,7 @@ export default function SearchResults() {
       setLoading(true)
       const filters = {
         search: query,
-        sortBy,
+        ...(sortBy ? { sortBy } : {}),
         page,
         limit: 12,
       }
@@ -64,6 +70,10 @@ export default function SearchResults() {
       const res = await searchCourses(filters, { silent: true })
       setResults(res.data || [])
       setPagination(res.pagination || { total: 0, pages: 0 })
+      setCategoryCounts(
+        res.facets ? Object.fromEntries(res.facets.categories.map((c) => [c._id, c.count])) : null
+      )
+      setDidYouMean(res.didYouMean || null)
       setLoading(false)
     })()
   }, [query, category, minPrice, maxPrice, minRating, sortBy, page])
@@ -73,7 +83,7 @@ export default function SearchResults() {
     setMinPrice("")
     setMaxPrice("")
     setMinRating("")
-    setSortBy("newest")
+    setSortBy("")
   }
 
   return (
@@ -114,6 +124,7 @@ export default function SearchResults() {
                 {allCategories.map((c) => (
                   <option key={c._id} value={c._id}>
                     {c.name}
+                    {categoryCounts ? ` (${categoryCounts[c._id] || 0})` : ""}
                   </option>
                 ))}
               </select>
@@ -197,9 +208,17 @@ export default function SearchResults() {
                 <div className="spinner"></div>
               </div>
             ) : results.length === 0 ? (
-              <p className="py-20 text-center text-lg text-richblack-300">
-                No courses match your filters.
-              </p>
+              <div className="py-20 text-center">
+                <p className="text-lg text-richblack-300">No courses match your filters.</p>
+                {didYouMean && (
+                  <button
+                    onClick={() => setSearchParams({ q: didYouMean })}
+                    className="mt-3 text-richblue-200 hover:underline"
+                  >
+                    Did you mean "{didYouMean}"?
+                  </button>
+                )}
+              </div>
             ) : (
               <>
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">

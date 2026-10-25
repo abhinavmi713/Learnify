@@ -1,3 +1,4 @@
+const { cacheRequests } = require("./metrics")
 const NodeCache = require("node-cache")
 const { getRedis } = require("../config/redis")
 const logger = require("./logger")
@@ -130,6 +131,7 @@ function cacheResponse(ttlSeconds = 60, { namespace = CATALOG } = {}) {
       const hit = await storeGet(key)
       if (hit !== undefined) {
         stats.hits++
+        cacheRequests.inc({ namespace, result: "hit" })
         res.set("X-Cache", "HIT")
         return res.status(200).json(hit)
       }
@@ -144,12 +146,14 @@ function cacheResponse(ttlSeconds = 60, { namespace = CATALOG } = {}) {
       const filled = await waitForValue(key)
       if (filled !== undefined) {
         stats.waits++
+        cacheRequests.inc({ namespace, result: "wait" })
         res.set("X-Cache", "HIT-WAIT")
         return res.status(200).json(filled)
       }
       // The computing request failed or is slow; fall through and compute.
     }
 
+    cacheRequests.inc({ namespace, result: "miss" })
     res.set("X-Cache", "MISS")
     const originalJson = res.json.bind(res)
     let storing = false

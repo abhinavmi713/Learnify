@@ -39,5 +39,8 @@ const courseProgress = new mongoose.Schema({
 // per course) — indexing the pair also makes it impossible to accidentally
 // create two progress docs for the same enrollment.
 courseProgress.index({ courseID: 1, userId: 1 }, { unique: true })
+// "All of one student's progress" (profile stats): the index above starts with
+// courseID, so it cannot serve a query on userId alone.
+courseProgress.index({ userId: 1 })
 
 module.exports = mongoose.model("courseProgress", courseProgress)

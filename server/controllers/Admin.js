@@ -7,6 +7,8 @@ const { notifyUser } = require("../utils/notify")
 const { bucketByMonth } = require("../utils/analytics")
 const { getPagination, buildPaginationMeta } = require("../utils/pagination")
 const AuditLog = require("../models/AuditLog")
+const { enqueueEvent } = require("../events/outbox")
+const { EVENTS } = require("../events/types")
 const mongoose = require("mongoose")
 const { revokeAllSessions } = require("../utils/sessions")
 
@@ -57,6 +59,7 @@ exports.approveCourse = async (req, res) => {
     course.rejectionReason = undefined
     await course.save()
     invalidateCatalogCache()
+    await enqueueEvent(EVENTS.COURSE_PUBLISHED, { courseId: String(course._id) })
 
     await notifyUser(
       course.instructor,
@@ -92,6 +95,7 @@ exports.rejectCourse = async (req, res) => {
     course.status = "Draft"
     course.rejectionReason = reason || "No reason provided"
     await course.save()
+    await enqueueEvent(EVENTS.COURSE_REJECTED, { courseId: String(course._id), reason: course.rejectionReason })
 
     await notifyUser(
       course.instructor,

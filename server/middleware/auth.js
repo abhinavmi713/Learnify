@@ -99,15 +99,27 @@ exports.optionalAuth = async (req, res, next) => {
 const forbidden = (res, message) => res.status(403).json({ success: false, message });
 
 // Requires every listed permission (see config/permissions.js).
-exports.requirePermission = (...permissions) => (req, res, next) => {
-	const role = req.user?.accountType;
-	if (permissions.every((p) => can(role, p))) return next();
-	return forbidden(res, "You do not have permission to do this");
+exports.requirePermission = (...permissions) => {
+	const middleware = (req, res, next) => {
+		const role = req.user?.accountType;
+		if (permissions.every((p) => can(role, p))) return next();
+		return forbidden(res, "You do not have permission to do this");
+	};
+	middleware.openapi = { permissions };
+	return middleware;
 };
 
-const requireRole = (role, message) => (req, res, next) =>
-	req.user?.accountType === role ? next() : forbidden(res, message);
+const requireRole = (role, message) => {
+	const middleware = (req, res, next) =>
+		req.user?.accountType === role ? next() : forbidden(res, message);
+	middleware.openapi = { roles: [role] };
+	return middleware;
+};
 
 exports.isStudent = requireRole("Student", "This is a Protected Route for Students");
 exports.isAdmin = requireRole("Admin", "This is a Protected Route for Admin");
 exports.isInstructor = requireRole("Instructor", "This is a Protected Route for Instructor");
+
+// Read by openapi/generate.js.
+exports.auth.openapi = { auth: "required" };
+exports.optionalAuth.openapi = { auth: "optional" };

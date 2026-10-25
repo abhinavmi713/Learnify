@@ -28,4 +28,8 @@ const paymentRecordSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
+// Covering index for revenue reports: status + createdAt + amount are all the
+// query reads, so it is answered from the index alone.
+paymentRecordSchema.index({ status: 1, createdAt: 1, amount: 1 })
+
 module.exports = mongoose.model("PaymentRecord", paymentRecordSchema)

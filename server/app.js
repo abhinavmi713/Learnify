@@ -14,6 +14,10 @@ const cors = require("cors");
 const fileUpload = require("express-fileupload");
 const helmet = require("helmet");
 const pinoHttp = require("pino-http");
+const { httpMetrics, metricsHandler } = require("./utils/metrics");
+const swaggerUi = require("swagger-ui-express");
+const { buildSpec } = require("./openapi/generate");
+const webhookRoutes = require("./routes/webhooks");
 
 dotenv.config();
 
@@ -63,6 +67,7 @@ if (process.env.TRUST_PROXY) {
 }
 
 // Middleware setup
+app.use(httpMetrics);
 app.use(helmet());
 if (process.env.NODE_ENV !== "test") {
   app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === "/" || req.url === "/health" } }));
@@ -121,6 +126,7 @@ app.use("/api/v1/internal", internalRoutes);
 app.use("/api/v1/learning-path", learningPathRoutes);
 app.use("/api/v1/reach", contactUsRoute);
 app.use("/api/v1/chatbot", chatBotRoute);
+app.use("/api/v1/webhooks", webhookRoutes);
 
 // Liveness/readiness probe for load balancers and uptime monitors.
 registerCheck(
@@ -130,6 +136,25 @@ registerCheck(
   },
   { critical: true }
 );
+
+// API documentation, generated from the routes themselves (openapi/generate.js).
+// Built on first request so every router is mounted by then.
+let openapiSpec = null;
+const getSpec = () => (openapiSpec ||= buildSpec(app, { version: require("./package.json").version }));
+app.get("/api/openapi.json", (req, res) => res.json(getSpec()));
+app.use(
+  "/api/docs",
+  // Swagger UI needs inline scripts/styles; relax CSP for this page only.
+  (req, res, next) => {
+    res.setHeader("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'");
+    next();
+  },
+  swaggerUi.serve,
+  (req, res, next) => swaggerUi.setup(getSpec(), { customSiteTitle: "Learnify API" })(req, res, next)
+);
+
+// Prometheus scrape endpoint (see utils/metrics.js for access rules).
+app.get("/metrics", metricsHandler);
 
 app.get("/health", async (req, res) => {
   const { ok, dependencies } = await runChecks();

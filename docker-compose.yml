@@ -10,6 +10,11 @@
 #   redis      6379
 #   rabbitmq   5672 (AMQP), 15672 (management UI: guest / guest)
 #   qdrant     6333 (HTTP), 6334 (gRPC)   vector database for the RAG service
+#   elasticsearch 9200                    course search and autocomplete
+#
+# Observability (Prometheus, Grafana, Jaeger) is opt-in too:
+#   docker compose --profile observability up -d
+#   prometheus 9090   grafana 3001 (admin / admin)   jaeger 16686 (UI), 4318 (OTLP)
 #
 # The AI service is opt-in (it needs ai-service/.env with a Gemini key):
 #   docker compose --profile ai up -d --build
@@ -79,6 +84,24 @@ services:
       timeout: 5s
       retries: 10
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    environment:
+      discovery.type: single-node
+      # Local development only: no TLS or passwords on the loopback port.
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+
   ai-service:
     profiles: ["ai"]
     build: ./ai-service
@@ -97,8 +120,51 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "9090:9090"
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/learnify-overview.json
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+
+  jaeger:
+    profiles: ["observability"]
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+
 volumes:
+  prometheus-data:
   mongo-data:
   redis-data:
   rabbitmq-data:
   qdrant-data:
+  es-data:

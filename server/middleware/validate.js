@@ -3,7 +3,7 @@
 // in gets the same consistent 400 response shape for bad input instead of
 // each controller hand-rolling its own subset of checks.
 function validate(schema, source = "body") {
-  return (req, res, next) => {
+  const middleware = (req, res, next) => {
     const result = schema.safeParse(req[source])
     if (!result.success) {
       const firstIssue = result.error.issues[0]
@@ -19,6 +19,9 @@ function validate(schema, source = "body") {
     req[source] = result.data
     next()
   }
+  // Read by openapi/generate.js to document the request shape.
+  middleware.openapi = { schema, source }
+  return middleware
 }
 
 module.exports = { validate }

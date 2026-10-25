@@ -18,7 +18,8 @@ function Course_Card({ course, Height }) {
   const isWishlisted = wishlistIds.includes(course._id)
 
   useEffect(() => {
-    const count = GetAvgRating(course.ratingAndReviews)
+    // Search results carry a precomputed average; other lists populate reviews.
+    const count = typeof course.avgRating === "number" ? course.avgRating : GetAvgRating(course.ratingAndReviews)
     setAvgReviewCount(count)
   }, [course])
 
@@ -64,7 +65,7 @@ function Course_Card({ course, Height }) {
           <div className="flex items-center gap-2 text-sm">
             <span className="font-semibold text-richblack-5">{avgReviewCount || 0}</span>
             <RatingStars Review_Count={avgReviewCount} Star_Size={16} />
-            <span className="text-richblack-400">({course?.ratingAndReviews?.length || 0})</span>
+            <span className="text-richblack-400">({course?.ratingCount ?? course?.ratingAndReviews?.length ?? 0})</span>
           </div>
           <p className="mt-auto pt-2 text-lg font-bold text-yellow-50">
             {course?.price ? `₹${course.price}` : "Free"}

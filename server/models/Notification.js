@@ -6,7 +6,7 @@ const notificationSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
       ref: "user",
-      index: true,
+      // Indexed through the compound indexes below (user is their prefix).
     },
     message: {
       type: String,
@@ -22,5 +22,9 @@ const notificationSchema = new mongoose.Schema(
   },
   { timestamps: true }
 )
+
+// Feed (newest first) and unread badge for one user.
+notificationSchema.index({ user: 1, createdAt: -1 })
+notificationSchema.index({ user: 1, read: 1 })
 
 module.exports = mongoose.model("Notification", notificationSchema)

@@ -16,6 +16,8 @@ const outboxEventSchema = new mongoose.Schema(
     payload: { type: mongoose.Schema.Types.Mixed, default: {} },
     // Payloads holding secrets (OTP, reset links) are wiped once delivered.
     sensitive: { type: Boolean, default: false },
+    // W3C trace context of the request that produced the event (tracing).
+    traceContext: { type: mongoose.Schema.Types.Mixed, default: null },
     status: { type: String, enum: ["pending", "publishing", "sent", "failed"], default: "pending" },
     attempts: { type: Number, default: 0 },
     nextAttemptAt: { type: Date, default: Date.now },

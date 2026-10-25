@@ -1,3 +1,5 @@
+const { withTraceContext } = require("../utils/traceContext")
+const { eventsPublished } = require("../utils/metrics")
 const OutboxEvent = require("../models/OutboxEvent")
 const { publish } = require("./publisher")
 const logger = require("../utils/logger")
@@ -37,11 +39,14 @@ async function claimNext() {
 async function publishOne(doc) {
   const event = { id: doc.eventId, type: doc.type, payload: doc.payload, occurredAt: doc.createdAt }
   try {
-    await publish(event)
+    // Publish inside the originating request's trace, so the broker hop and the
+    // consumer show up under the same trace id.
+    await withTraceContext(doc.traceContext, () => publish(event))
     const update = { status: "sent", sentAt: new Date(), lockedAt: null, lastError: null }
     // A delivered OTP or reset link has no reason to stay in the database.
     if (doc.sensitive) update.payload = { redacted: true }
     await OutboxEvent.updateOne({ _id: doc._id }, { $set: update })
+    eventsPublished.inc({ type: doc.type, outcome: "success" })
     return true
   } catch (error) {
     const exhausted = doc.attempts >= MAX_ATTEMPTS
@@ -56,6 +61,7 @@ async function publishOne(doc) {
         },
       }
     )
+    eventsPublished.inc({ type: doc.type, outcome: "failure" })
     logger.warn({ eventId: doc.eventId, type: doc.type, attempts: doc.attempts, err: error.message }, "outbox publish failed")
     return false
   }

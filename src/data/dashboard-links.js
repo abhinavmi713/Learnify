@@ -29,6 +29,13 @@ export const sidebarLinks = [
     icon: "VscAdd",
   },
   {
+    id: 20,
+    name: "Webhooks",
+    path: "/dashboard/webhooks",
+    type: ACCOUNT_TYPE.INSTRUCTOR,
+    icon: "VscPlug",
+  },
+  {
     id: 5,
     name: "Enrolled Courses",
     path: "/dashboard/enrolled-courses",

@@ -21,6 +21,7 @@ function requireInternalToken(req, res, next) {
   next()
 }
 
+requireInternalToken.openapi = { internal: true }
 router.use(requireInternalToken)
 
 // Everything the AI service indexes for one course.

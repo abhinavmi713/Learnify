@@ -1,8 +1,13 @@
 name: CI
 
-# Runs the backend and AI service Jest suites, the frontend tests and a production frontend
-# build on every push and pull request. The build runs with CI=true (as Vercel
-# and Netlify do), so lint warnings fail it here instead of at deploy time.
+# On every push and pull request:
+#   backend / ai-service / frontend  unit and API tests, production frontend build
+#   integration                      the same backend tests that need real RabbitMQ
+#                                    and Elasticsearch, against service containers
+#   images                           builds the API and AI service Docker images;
+#                                    on main they are pushed to GitHub Container Registry
+# The frontend build runs with CI=true (as Vercel and Netlify do), so lint
+# warnings fail it here instead of at deploy time.
 on:
   push:
     branches: [main]
@@ -28,6 +33,84 @@ jobs:
           # The suite uses an in-memory MongoDB; these only need to exist.
           JWT_SECRET: test-secret-only-used-in-ci
           NODE_ENV: test
+
+  integration:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    services:
+      rabbitmq:
+        image: rabbitmq:3.13-alpine
+        ports: ["5672:5672"]
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s --health-timeout 10s --health-retries 10
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+        ports: ["9200:9200"]
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: "false"
+          ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+        options: >-
+          --health-cmd "curl -fs http://127.0.0.1:9200/_cluster/health"
+          --health-interval 10s --health-timeout 10s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      # Retry/DLQ topology against a real broker, and search relevance against a
+      # real Elasticsearch (both are skipped in the plain backend job).
+      - run: npx jest tests/rabbit.integration.test.js tests/search.test.js
+        env:
+          JWT_SECRET: test-secret-only-used-in-ci
+          NODE_ENV: test
+          RABBITMQ_TEST_URL: amqp://guest:guest@127.0.0.1:5672
+          ES_TEST_URL: http://127.0.0.1:9200
+
+  images:
+    runs-on: ubuntu-latest
+    needs: [backend, ai-service]
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - name: api
+            context: server
+          - name: ai-service
+            context: ai-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/learnify-${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+      # Pull requests only prove the image builds; main also publishes it,
+      # tagged with the commit sha (immutable) and latest.
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
+            ${{ steps.image.outputs.name }}:latest
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
 
   ai-service:
     runs-on: ubuntu-latest

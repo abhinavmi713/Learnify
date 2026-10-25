@@ -3,8 +3,9 @@ import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
 import useDebouncedValue from "../../hooks/useDebouncedValue"
-import { searchCourses } from "../../services/operations/searchAPI"
+import { suggestCourses } from "../../services/operations/searchAPI"
 import { formatPrice } from "../../utils/formatPrice"
+import Highlight from "./Highlight"
 
 // Search input with a live-suggestions dropdown. Submitting (Enter) or
 // clicking a suggestion navigates to the full search results page.
@@ -12,7 +13,7 @@ export default function SearchBar({ onNavigate, autoFocus = false }) {
   const [query, setQuery] = useState("")
   const [suggestions, setSuggestions] = useState([])
   const [open, setOpen] = useState(false)
-  const debouncedQuery = useDebouncedValue(query, 300)
+  const debouncedQuery = useDebouncedValue(query, 200)
   const navigate = useNavigate()
   const containerRef = useRef(null)
 
@@ -23,11 +24,8 @@ export default function SearchBar({ onNavigate, autoFocus = false }) {
     }
     let cancelled = false
     ;(async () => {
-      const result = await searchCourses(
-        { search: debouncedQuery.trim(), limit: 5 },
-        { silent: true }
-      )
-      if (!cancelled) setSuggestions(result.data || [])
+      const result = await suggestCourses(debouncedQuery.trim())
+      if (!cancelled) setSuggestions(result)
     })()
     return () => {
       cancelled = true
@@ -103,8 +101,13 @@ export default function SearchBar({ onNavigate, autoFocus = false }) {
                     className="h-10 w-14 shrink-0 rounded object-cover"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-richblack-5">{course.courseName}</p>
-                    <p className="text-xs text-richblack-400">{formatPrice(course.price)}</p>
+                    <p className="truncate text-sm text-richblack-5">
+                      <Highlight text={course.highlight} fallback={course.courseName} />
+                    </p>
+                    <p className="truncate text-xs text-richblack-400">
+                      {course.instructorName ? `${course.instructorName} · ` : ""}
+                      {formatPrice(course.price)}
+                    </p>
                   </div>
                 </button>
               ))}

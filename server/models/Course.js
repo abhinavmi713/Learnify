@@ -75,6 +75,12 @@ const coursesSchema = new mongoose.Schema({
 // partial-word (substring) matches, which is why searchCourses still falls
 // back to regex for short/single-word queries.
 coursesSchema.index({ courseName: "text", courseDescription: "text", tag: "text" })
+// Equality, Sort, Range: serves the catalog (Published, not deleted, newest
+// first) and the moderation queue (Pending, newest first) without an in-memory
+// sort. Measured with `npm run perf:explain` (docs/PERFORMANCE.md).
+coursesSchema.index({ status: 1, createdAt: -1, deletedAt: 1 })
+// An instructor's own courses (dashboard, live classes).
+coursesSchema.index({ instructor: 1, deletedAt: 1 })
 
 // Export the Courses model
 module.exports = mongoose.model("Course", coursesSchema)

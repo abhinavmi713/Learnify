@@ -1,3 +1,6 @@
+// Must run before any instrumented module (http, express, mongodb, ...) loads.
+require("./tracing").startTracing("learnify-api");
+
 const dotenv = require("dotenv");
 dotenv.config();
 
@@ -24,6 +27,7 @@ database.connect();
 // Connect to Redis now (not on first request) so the cache and rate limits are
 // shared from the first request; a no-op when REDIS_URL is unset.
 redisConfigured();
+require("./search/courseIndex").bootstrapSearch();
 
 // Outbox -> broker. The relay publishes events that business code recorded in
 // the database; without RABBITMQ_URL it hands them to in-process consumers.

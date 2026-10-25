@@ -28,7 +28,8 @@ export default function ManageLearningPaths() {
   }
 
   useEffect(() => {
-    getAllCourses().then((c) => setAllCourses(c || []))
+    // The 100 newest courses (the endpoint is paginated).
+    getAllCourses({ limit: 100 }).then((c) => setAllCourses(c || []))
   }, [])
 
   useEffect(() => {

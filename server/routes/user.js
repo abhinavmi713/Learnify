@@ -71,6 +71,8 @@ const requireXhr = (req, res, next) =>
     ? next()
     : res.status(403).json({ success: false, message: "Missing X-Requested-With header" })
 
+requireXhr.openapi = { xhr: true }
+
 // New access token from the refresh-token cookie (rotates the cookie).
 router.post("/refresh", requireXhr, refresh)
 

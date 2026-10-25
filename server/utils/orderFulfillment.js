@@ -1,3 +1,4 @@
+const { ordersFulfilled } = require("./metrics")
 const Course = require("../models/Course")
 const User = require("../models/User")
 const Coupon = require("../models/Coupon")
@@ -64,7 +65,7 @@ const isDuplicateOrder = (error) =>
 // the order can be delivered.
 async function fulfillOrder({ orderId, paymentId, userId, courseIds, couponCode, amount, source }) {
   try {
-    return await runInTransaction(async (session) => {
+    const result = await runInTransaction(async (session) => {
       const opts = session ? { session } : {}
       const newlyEnrolled = await enrollUserInCourses(courseIds, userId, session)
 
@@ -102,6 +103,9 @@ async function fulfillOrder({ orderId, paymentId, userId, courseIds, couponCode,
       }
       return { alreadyProcessed: false }
     })
+    // Counted after commit: the callback above can run again on a transient retry.
+    if (!result.alreadyProcessed) ordersFulfilled.inc({ source: source || "unknown" })
+    return result
   } catch (error) {
     // The unique orderId rejected the insert: this order was already delivered,
     // and the aborted transaction left everything as the first run set it.

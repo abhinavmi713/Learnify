@@ -22,6 +22,7 @@ const TITLES = [
   [/^\/dashboard\/enrolled-courses/, "Enrolled courses"],
   [/^\/dashboard\/instructor/, "Instructor dashboard"],
   [/^\/dashboard\/my-courses/, "My courses"],
+  [/^\/dashboard\/webhooks/, "Webhooks"],
   [/^\/dashboard\/add-course/, "Add course"],
   [/^\/dashboard\/edit-course/, "Edit course"],
   [/^\/dashboard\/cart/, "Cart"],

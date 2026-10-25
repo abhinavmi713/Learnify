@@ -31,6 +31,7 @@ const schema = z.object({
   REDIS_URL: optionalUrl(["redis://", "rediss://"]),
   RABBITMQ_URL: optionalUrl(["amqp://", "amqps://"]),
   QDRANT_URL: optionalUrl(["http://", "https://"]),
+  ELASTICSEARCH_URL: optionalUrl(["http://", "https://"]),
   AI_SERVICE_URL: optionalUrl(["http://", "https://"]),
   // Shared secret between Learnify services (internal API + AI service).
   INTERNAL_API_TOKEN: z.string().min(24).optional(),

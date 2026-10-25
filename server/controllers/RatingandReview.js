@@ -1,3 +1,5 @@
+const { enqueueEvent } = require("../events/outbox")
+const { EVENTS } = require("../events/types")
 const RatingAndReview = require("../models/RatingandReview")
 const { invalidateCatalogCache } = require("../utils/cache")
 const Course = require("../models/Course")
@@ -73,6 +75,13 @@ exports.createRating = async (req, res) => {
       },
     })
     await courseDetails.save()
+    // Re-ranks the course in search and notifies the instructor's webhooks.
+    await enqueueEvent(EVENTS.REVIEW_CREATED, {
+      courseId: String(courseId),
+      reviewId: String(ratingReview._id),
+      rating: numericRating,
+      review: review || "",
+    })
 
     return res.status(201).json({
       success: true,

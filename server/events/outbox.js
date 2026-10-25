@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require("uuid")
 const OutboxEvent = require("../models/OutboxEvent")
 const { SENSITIVE } = require("./types")
+const { captureTraceContext } = require("../utils/traceContext")
 
 // Records an event to be published. Pass the `session` of the transaction that
 // makes the business change so both commit together or not at all:
@@ -19,6 +20,7 @@ async function enqueueEvent(type, payload, { session } = {}) {
     type,
     payload,
     sensitive: SENSITIVE.has(type),
+    traceContext: captureTraceContext(),
   }
   const [created] = await OutboxEvent.create([doc], session ? { session } : {})
   return created

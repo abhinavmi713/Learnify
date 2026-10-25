@@ -24,6 +24,7 @@ function Home() {
   const navigate = useNavigate()
   const [query, setQuery] = useState("")
   const [courses, setCourses] = useState([])
+  const [courseTotal, setCourseTotal] = useState(null)
   const [cats, setCats] = useState([])
   const { token } = useSelector((state) => state.auth)
   const { user } = useSelector((state) => state.profile)
@@ -44,10 +45,12 @@ function Home() {
     ;(async () => {
       try {
         const [c, k] = await Promise.all([
-          apiConnector("GET", courseEndpoints.GET_ALL_COURSE_API),
+          // Only the featured four are shown; the total comes from the pagination.
+          apiConnector("GET", courseEndpoints.GET_ALL_COURSE_API, null, null, { limit: 4 }),
           apiConnector("GET", categories.CATEGORIES_API),
         ])
         setCourses(c?.data?.data || [])
+        setCourseTotal(c?.data?.pagination?.total ?? null)
         setCats((k?.data?.data || []).filter((x) => x?.courses?.length))
       } catch (error) {
         // The page still works without live data; those sections just hide.
@@ -99,7 +102,7 @@ function Home() {
 
             <div className="mt-8 flex flex-wrap gap-x-10 gap-y-4">
               {[
-                [courses.length ? String(courses.length) : "-", "Live courses"],
+                [courseTotal ? String(courseTotal) : "-", "Live courses"],
                 [cats.length ? String(cats.length) : "-", "Categories"],
                 ["100%", "Self-paced"],
               ].map(([value, label]) => (

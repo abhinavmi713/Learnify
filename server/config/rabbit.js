@@ -1,5 +1,6 @@
 const amqp = require("amqplib")
 const logger = require("../utils/logger")
+const { inSpan, injectHeaders } = require("../utils/traceContext")
 const { registerCheck } = require("../utils/health")
 
 // RabbitMQ connection, topology and consumer runtime.
@@ -96,7 +97,18 @@ async function startConsumer(def) {
     }
 
     try {
-      await def.handler(event)
+      await inSpan(
+        `${def.name} process ${event.type}`,
+        {
+          kind: "CONSUMER",
+          parent: headers,
+          attributes: { "messaging.system": "rabbitmq", "messaging.consumer.group.name": def.name, "messaging.message.id": event.id, "learnify.attempt": (Number(headers["x-attempts"]) || 0) + 1 },
+        },
+        () => {
+          const attempt = (Number(headers["x-attempts"]) || 0) + 1
+          return def.handler(event, { attempt, finalAttempt: attempt >= maxAttempts })
+        }
+      )
       channel.ack(msg)
     } catch (error) {
       const attempts = (Number(headers["x-attempts"]) || 0) + 1
@@ -195,15 +207,25 @@ function start() {
 }
 
 // Publishes one event and resolves only after the broker confirms it.
+// The OpenTelemetry amqplib instrumentation does not support amqplib 2.x, so
+// the W3C trace context travels in the message headers explicitly (producer span
+// here, consumer span in startConsumer). Retries copy headers, so a retried
+// message stays in the same trace.
 async function publishEvent(event) {
   if (!isConnected()) throw new Error("rabbitmq not connected")
-  await promisePublish(publishChannel, EVENTS_EXCHANGE, event.type, Buffer.from(JSON.stringify(event)), {
-    persistent: true,
-    contentType: "application/json",
-    messageId: event.id,
-    type: event.type,
-    timestamp: Math.floor(Date.now() / 1000),
-  })
+  await inSpan(
+    `${EVENTS_EXCHANGE} publish ${event.type}`,
+    { kind: "PRODUCER", attributes: { "messaging.system": "rabbitmq", "messaging.destination.name": EVENTS_EXCHANGE, "messaging.message.id": event.id } },
+    () =>
+      promisePublish(publishChannel, EVENTS_EXCHANGE, event.type, Buffer.from(JSON.stringify(event)), {
+        persistent: true,
+        contentType: "application/json",
+        messageId: event.id,
+        type: event.type,
+        timestamp: Math.floor(Date.now() / 1000),
+        headers: injectHeaders({}),
+      })
+  )
 }
 
 // def: { name, bindings: [eventType], handler(event), retryDelaysMs?, prefetch? }

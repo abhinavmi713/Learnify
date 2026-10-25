@@ -23,12 +23,12 @@ async function resolveCourseId(req) {
 // Recorded after the response, outside the business transaction, because it only
 // triggers a refresh: if it is ever missed, `npm run reindex` in the AI service
 // rebuilds everything.
-function emitContentChanged() {
+function emitContentChanged(type = EVENTS.COURSE_CONTENT_CHANGED) {
   return (req, res, next) => {
     res.on("finish", () => {
       if (res.statusCode < 200 || res.statusCode >= 300) return
       resolveCourseId(req)
-        .then((courseId) => courseId && enqueueEvent(EVENTS.COURSE_CONTENT_CHANGED, { courseId }))
+        .then((courseId) => courseId && enqueueEvent(type, { courseId }))
         .catch((error) => logger.warn({ err: error.message }, "could not record course.content_changed"))
     })
     next()

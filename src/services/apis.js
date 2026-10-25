@@ -69,6 +69,7 @@ export const courseEndpoints = {
   LECTURE_COMPLETION_API: BASE_URL + "/api/v1/course/updateCourseProgress",
   CREATE_RATING_API: BASE_URL + "/api/v1/course/createRating",
   SEARCH_COURSES_API: BASE_URL + "/api/v1/course/searchCourses",
+  SUGGEST_COURSES_API: BASE_URL + "/api/v1/course/suggest",
   UPDATE_WATCH_POSITION_API: BASE_URL + "/api/v1/course/updateWatchPosition",
   UPLOAD_SIGNATURE_API: BASE_URL + "/api/v1/course/uploadSignature",
   GENERATE_COURSE_DESCRIPTION_API: BASE_URL + "/api/v1/course/generateDescription",
@@ -169,6 +170,11 @@ export const settingsEndpoints = {
   CHANGE_PASSWORD_API: BASE_URL + "/api/v1/auth/changepassword",
   DELETE_PROFILE_API: BASE_URL + "/api/v1/profile/deleteProfile",
 };
+
+// INSTRUCTOR WEBHOOKS
+export const webhookEndpoints = {
+  WEBHOOKS_API: BASE_URL + "/api/v1/webhooks",
+}
 
 // ACCOUNT SECURITY (sessions + two-factor authentication)
 export const securityEndpoints = {

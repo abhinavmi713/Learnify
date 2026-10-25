@@ -50,7 +50,7 @@ const store = {
 const fingerprint = (body) => crypto.createHash("sha256").update(JSON.stringify(body ?? null)).digest("hex")
 
 function idempotent({ ttlSec = 24 * 3600, required = false } = {}) {
-  return async (req, res, next) => {
+  const middleware = async (req, res, next) => {
     const key = req.get("Idempotency-Key")
     if (!key) {
       if (!required) return next()
@@ -103,6 +103,8 @@ function idempotent({ ttlSec = 24 * 3600, required = false } = {}) {
     })
     next()
   }
+  middleware.openapi = { idempotent: { required } }
+  return middleware
 }
 
 function resetIdempotencyStore() {

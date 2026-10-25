@@ -3,7 +3,7 @@
 // without touching route code.
 const ROLE_PERMISSIONS = {
   Student: ["course:purchase", "course:learn", "coupon:redeem", "review:write"],
-  Instructor: ["course:author", "quiz:author", "liveclass:host", "analytics:own"],
+  Instructor: ["course:author", "quiz:author", "liveclass:host", "analytics:own", "webhook:manage"],
   Admin: [
     "course:moderate",
     "user:read",

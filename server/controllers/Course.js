@@ -10,6 +10,12 @@ const CourseProgress = require("../models/CourseProgress")
 const { convertSecondsToDuration } = require("../utils/secToDuration")
 const { callGemini, extractJson } = require("../utils/gemini")
 const { signVideoUpload } = require("../utils/cloudinarySigner")
+const logger = require("../utils/logger")
+const { searchRequests } = require("../utils/metrics")
+const courseSearch = {
+  ...require("../search/courseSearch"),
+  isConfigured: require("../config/elasticsearch").isConfigured,
+}
 // Short-lived signed parameters so the browser can upload a lecture video
 // directly to Cloudinary (see utils/cloudinarySigner.js).
 exports.getUploadSignature = async (req, res) => {
@@ -378,29 +384,63 @@ exports.getRecommendedCourses = async (req, res) => {
 }
 
 // Get Course List
+// Published courses, newest first, one page at a time.
+//   ?limit=24 (max 100)   ?before=<nextCursor from the previous page>
+// It used to return every course: a k6 run on 9k courses showed a 3.5 MB
+// response and a p95 of 10 s even when served from cache (docs/PERFORMANCE.md).
+// Keyset pagination on the {status, createdAt, deletedAt} index keeps every page
+// an index range scan. Ratings are computed for the page's courses only.
 exports.getAllCourses = async (req, res) => {
   try {
-    const allCourses = await Course.find(
-      { status: "Published", deletedAt: null },
-      {
-        courseName: true,
-        price: true,
-        thumbnail: true,
-        instructor: true,
-        ratingAndReviews: true,
-        studentsEnrolled: true,
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 24))
+    const match = { status: "Published", deletedAt: null }
+    const baseMatch = { ...match }
+    if (req.query.before) {
+      const [ms, id] = String(req.query.before).split("_")
+      if (!/^\d+$/.test(ms || "") || !mongoose.isValidObjectId(id)) {
+        return res.status(400).json({ success: false, message: "Invalid cursor" })
       }
-    )
-      .populate({ path: "instructor", select: "firstName lastName image additionalDetails" })
-      .exec()
+      const at = new Date(Number(ms))
+      match.$or = [{ createdAt: { $lt: at } }, { createdAt: at, _id: { $lt: new mongoose.Types.ObjectId(id) } }]
+    }
+
+    const [rows, total] = await Promise.all([
+      Course.aggregate([
+        { $match: match },
+        { $sort: { createdAt: -1, _id: -1 } },
+        { $limit: limit + 1 },
+        { $lookup: { from: "ratingandreviews", localField: "ratingAndReviews", foreignField: "_id", as: "reviews", pipeline: [{ $project: { rating: 1 } }] } },
+        {
+          $project: {
+            courseName: 1,
+            price: 1,
+            thumbnail: 1,
+            instructor: 1,
+            createdAt: 1,
+            avgRating: { $round: [{ $ifNull: [{ $avg: "$reviews.rating" }, 0] }, 1] },
+            ratingCount: { $size: "$reviews" },
+            studentsCount: { $size: { $ifNull: ["$studentsEnroled", []] } },
+          },
+        },
+      ]),
+      Course.countDocuments(baseMatch),
+    ])
+    const page = rows.slice(0, limit)
+    await Course.populate(page, { path: "instructor", select: "firstName lastName image" })
+    const last = page[page.length - 1]
 
     return res.status(200).json({
       success: true,
-      data: allCourses,
+      data: page,
+      pagination: {
+        total,
+        limit,
+        nextCursor: rows.length > limit && last ? `${new Date(last.createdAt).getTime()}_${last._id}` : null,
+      },
     })
   } catch (error) {
     console.log(error)
-    return res.status(404).json({
+    return res.status(500).json({
       success: false,
       message: `Can't Fetch Course Data`,
       error: error.message,
@@ -668,13 +708,65 @@ exports.deleteCourse = async (req, res) => {
 // Search & filter published courses: free-text search, category, price range,
 // minimum rating, and sort — with pagination.
 const SORT_OPTIONS = {
+  relevance: { createdAt: -1 },
+  popular: { studentsCount: -1 },
   newest: { createdAt: -1 },
   priceLowHigh: { price: 1 },
   priceHighLow: { price: -1 },
   ratingHighLow: { avgRating: -1 },
 }
 
+// Search: Elasticsearch when configured (relevance, typo tolerance, facets),
+// otherwise, or if it fails, the MongoDB query below. The response says which
+// engine answered.
 exports.searchCourses = async (req, res) => {
+  if (courseSearch.isConfigured()) {
+    try {
+      const result = await courseSearch.search(req.body || {})
+      searchRequests.inc({ engine: "elasticsearch", kind: "search" })
+      return res.status(200).json({ success: true, engine: "elasticsearch", ...result })
+    } catch (error) {
+      logger.warn({ err: error.message }, "elasticsearch search failed; using MongoDB")
+    }
+  }
+  searchRequests.inc({ engine: "mongo", kind: "search" })
+  return mongoSearchCourses(req, res)
+}
+
+// Autocomplete for the search box.
+exports.suggestCourses = async (req, res) => {
+  const q = String(req.query.q || "").trim().slice(0, 100)
+  if (!q) return res.status(200).json({ success: true, data: [] })
+  if (courseSearch.isConfigured()) {
+    try {
+      const data = await courseSearch.suggest(q)
+      searchRequests.inc({ engine: "elasticsearch", kind: "suggest" })
+      return res.status(200).json({ success: true, engine: "elasticsearch", data })
+    } catch (error) {
+      logger.warn({ err: error.message }, "elasticsearch suggest failed; using MongoDB")
+    }
+  }
+  searchRequests.inc({ engine: "mongo", kind: "suggest" })
+  const safe = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const rows = await Course.find({ status: "Published", deletedAt: null, courseName: new RegExp(safe, "i") })
+    .select("courseName thumbnail price instructor")
+    .populate("instructor", "firstName lastName")
+    .limit(6)
+    .lean()
+  return res.status(200).json({
+    success: true,
+    engine: "mongo",
+    data: rows.map((c) => ({
+      _id: c._id,
+      courseName: c.courseName,
+      thumbnail: c.thumbnail,
+      price: c.price,
+      instructorName: c.instructor ? `${c.instructor.firstName} ${c.instructor.lastName}` : "",
+    })),
+  })
+}
+
+async function mongoSearchCourses(req, res) {
   try {
     const {
       search = "",
@@ -738,6 +830,7 @@ exports.searchCourses = async (req, res) => {
         $addFields: {
           avgRating: { $ifNull: [{ $avg: "$reviews.rating" }, 0] },
           ratingCount: { $size: "$reviews" },
+          studentsCount: { $size: { $ifNull: ["$studentsEnroled", []] } },
         },
       },
     ]
@@ -772,6 +865,7 @@ exports.searchCourses = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      engine: "mongo",
       data: populated,
       pagination: {
         page: pageNum,

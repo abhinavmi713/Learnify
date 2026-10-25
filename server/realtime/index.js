@@ -207,4 +207,7 @@ function getIO() {
   return io
 }
 
-module.exports = { initRealtime, emitToUser, emitToRoom, closeRealtime, getIO }
+// Clients connected to this instance (exported as a Prometheus gauge).
+const connectionCount = () => (io ? io.engine.clientsCount : 0)
+
+module.exports = { initRealtime, emitToUser, emitToRoom, closeRealtime, getIO, connectionCount }

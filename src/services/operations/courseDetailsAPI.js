@@ -52,10 +52,11 @@ export async function getRecommendedCourses(token) {
   }
 }
 
-export const getAllCourses = async () => {
+// One page of published courses, newest first ({ limit, before } are optional).
+export const getAllCourses = async (params = {}) => {
   let result = []
   try {
-    const response = await apiConnector("GET", GET_ALL_COURSE_API)
+    const response = await apiConnector("GET", GET_ALL_COURSE_API, null, null, params)
     if (!response?.data?.success) {
       throw new Error("Could Not Fetch Course Categories")
     }

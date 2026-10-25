@@ -14,6 +14,7 @@ const {
   getInstructorCourses,
   deleteCourse,
   searchCourses,
+  suggestCourses,
   generateCourseDescription,
   getRecommendedCourses,
   getUploadSignature,
@@ -98,6 +99,8 @@ router.get("/getInstructorCourses", auth, isInstructor, getInstructorCourses)
 router.get("/getAllCourses", cacheResponse(60), getAllCourses)
 // Search & filter courses (text search, category, price range, rating, sort, pagination)
 router.post("/searchCourses", searchCourses)
+// Search-box autocomplete: GET /suggest?q=jav
+router.get("/suggest", suggestCourses)
 // AI-assisted course description/benefits draft for instructors
 router.post("/generateDescription", auth, isInstructor, aiLimiter, generateCourseDescription)
 // Content-based "recommended for you" courses for a logged-in student
