@@ -30,6 +30,7 @@ const adminRoutes = require("./routes/Admin");
 const notificationRoutes = require("./routes/Notification");
 const discussionRoutes = require("./routes/Discussion");
 const liveClassRoutes = require("./routes/LiveClass");
+const internalRoutes = require("./routes/internal");
 const learningPathRoutes = require("./routes/LearningPath");
 const contactUsRoute = require("./routes/Contact");
 const chatBotRoute = require("./routes/chatbot");
@@ -115,6 +116,8 @@ app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/notification", notificationRoutes);
 app.use("/api/v1/discussion", discussionRoutes);
 app.use("/api/v1/live-class", liveClassRoutes);
+// Service-to-service API (AI service); token-protected, not for browsers.
+app.use("/api/v1/internal", internalRoutes);
 app.use("/api/v1/learning-path", learningPathRoutes);
 app.use("/api/v1/reach", contactUsRoute);
 app.use("/api/v1/chatbot", chatBotRoute);

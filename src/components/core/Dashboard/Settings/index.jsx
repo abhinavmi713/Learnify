@@ -1,3 +1,4 @@
+import AccountSecurity from "./AccountSecurity"
 import Appearance from "./Appearance"
 import ChangeProfilePicture from "./ChangeProfilePicture"
 import DeleteAccount from "./DeleteAccount"
@@ -17,6 +18,8 @@ export default function Settings() {
       <EditProfile />
       {/* Password */}
       <UpdatePassword />
+      {/* Two-factor authentication and sessions */}
+      <AccountSecurity />
       {/* Delete Account */}
       <DeleteAccount />
     </>

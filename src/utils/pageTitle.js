@@ -37,6 +37,7 @@ const TITLES = [
   [/^\/dashboard\/admin\/users/, "Manage users"],
   [/^\/dashboard\/admin\/categories/, "Manage categories"],
   [/^\/dashboard\/admin\/coupons/, "Coupons"],
+  [/^\/dashboard\/admin\/audit-log/, "Audit log"],
   [/^\/dashboard\/admin\/learning-paths/, "Manage learning paths"],
   [/^\/dashboard\/admin/, "Admin"],
   [/^\/dashboard/, "Dashboard"],

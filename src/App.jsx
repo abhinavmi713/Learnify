@@ -24,6 +24,7 @@ import Achievements from "./components/core/Dashboard/Achievements"
 import StudentLiveClasses from "./components/core/Dashboard/StudentLiveClasses"
 import ManageQuizzes from "./components/core/Dashboard/ManageQuizzes"
 import ManageCoupons from "./components/core/Dashboard/Admin/ManageCoupons"
+import AuditLog from "./components/core/Dashboard/Admin/AuditLog"
 import ModerateCourses from "./components/core/Dashboard/Admin/ModerateCourses"
 import ManageUsers from "./components/core/Dashboard/Admin/ManageUsers"
 import ManageCategories from "./components/core/Dashboard/Admin/ManageCategories"
@@ -205,6 +206,7 @@ function App() {
           {user?.accountType === ACCOUNT_TYPE.ADMIN && (
             <>
               <Route path="dashboard/admin/coupons" element={<ManageCoupons />} />
+              <Route path="dashboard/admin/audit-log" element={<AuditLog />} />
               <Route path="dashboard/admin/analytics" element={<PlatformAnalytics />} />
               <Route path="dashboard/admin/moderate-courses" element={<ModerateCourses />} />
               <Route path="dashboard/admin/users" element={<ManageUsers />} />

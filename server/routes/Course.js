@@ -55,9 +55,12 @@ const {
   updateWatchPosition,
 } = require("../controllers/courseProgress")
 // Importing Middlewares
-const { auth, isInstructor, isStudent, isAdmin } = require("../middleware/auth")
+const { auth, isInstructor, isStudent, requirePermission } = require("../middleware/auth")
+const { audited } = require("../utils/audit")
+const { idempotent } = require("../middleware/idempotency")
 const { aiLimiter } = require("../middleware/rateLimiter")
 const { cacheResponse } = require("../utils/cache")
+const { emitContentChanged } = require("../utils/contentEvents")
 const { courseIdSchema } = require("../validators/miscValidators")
 const { validate } = require("../middleware/validate")
 const {
@@ -71,21 +74,21 @@ const {
 // ********************************************************************************************************
 
 // Courses can Only be Created by Instructors
-router.post("/createCourse", auth, isInstructor, validate(createCourseSchema), createCourse)
+router.post("/createCourse", auth, isInstructor, idempotent(), validate(createCourseSchema), createCourse)
 // Edit Course routes
-router.post("/editCourse", auth, isInstructor, validate(editCourseSchema), editCourse)
+router.post("/editCourse", auth, isInstructor, emitContentChanged(), validate(editCourseSchema), editCourse)
 //Add a Section to a Course
-router.post("/addSection", auth, isInstructor, validate(addSectionSchema), createSection)
+router.post("/addSection", auth, isInstructor, emitContentChanged(), validate(addSectionSchema), createSection)
 // Update a Section
-router.post("/updateSection", auth, isInstructor, validate(updateSectionSchema), updateSection)
+router.post("/updateSection", auth, isInstructor, emitContentChanged(), validate(updateSectionSchema), updateSection)
 // Delete a Section
-router.post("/deleteSection", auth, isInstructor, validate(deleteSectionSchema), deleteSection)
+router.post("/deleteSection", auth, isInstructor, emitContentChanged(), validate(deleteSectionSchema), deleteSection)
 // Edit Sub Section
-router.post("/updateSubSection", auth, isInstructor, validate(updateSubSectionSchema), updateSubSection)
+router.post("/updateSubSection", auth, isInstructor, emitContentChanged(), validate(updateSubSectionSchema), updateSubSection)
 // Delete Sub Section
-router.post("/deleteSubSection", auth, isInstructor, validate(deleteSubSectionSchema), deleteSubSection)
+router.post("/deleteSubSection", auth, isInstructor, emitContentChanged(), validate(deleteSubSectionSchema), deleteSubSection)
 // Add a Sub Section to a Section
-router.post("/addSubSection", auth, isInstructor, validate(addSubSectionSchema), createSubSection)
+router.post("/addSubSection", auth, isInstructor, emitContentChanged(), validate(addSubSectionSchema), createSubSection)
 // Signed params for a direct browser -> Cloudinary video upload
 router.post("/uploadSignature", auth, isInstructor, getUploadSignature)
 // Get all Courses Under a Specific Instructor
@@ -108,15 +111,16 @@ router.post("/updateCourseProgress", auth, isStudent, validate(lectureProgressSc
 // To save the student's current playback position (for resume-on-return)
 router.post("/updateWatchPosition", auth, isStudent, validate(watchPositionSchema), updateWatchPosition)
 // Delete a Course
-router.delete("/deleteCourse", auth, isInstructor, validate(courseIdSchema), deleteCourse)
+router.delete("/deleteCourse", auth, isInstructor, emitContentChanged(), validate(courseIdSchema), deleteCourse)
 // ********************************************************************************************************
 //                                      Category routes (Only by Admin)
 // ********************************************************************************************************
 // Category can Only be Created by Admin
 // TODO: Put IsAdmin Middleware here
-router.post("/createCategory", auth, isAdmin, validate(createCategorySchema), createCategory)
-router.post("/updateCategory", auth, isAdmin, validate(updateCategorySchema), updateCategory)
-router.post("/deleteCategory", auth, isAdmin, validate(categoryIdSchema), deleteCategory)
+const manageCategories = requirePermission("category:manage")
+router.post("/createCategory", auth, manageCategories, audited("category.create", (req) => ({ targetType: "category", metadata: { name: req.body?.name } })), validate(createCategorySchema), createCategory)
+router.post("/updateCategory", auth, manageCategories, audited("category.update", (req) => ({ targetType: "category", targetId: req.body?.categoryId })), validate(updateCategorySchema), updateCategory)
+router.post("/deleteCategory", auth, manageCategories, audited("category.delete", (req) => ({ targetType: "category", targetId: req.body?.categoryId })), validate(categoryIdSchema), deleteCategory)
 router.get("/showAllCategories", cacheResponse(60), showAllCategories)
 router.post("/getCategoryPageDetails", categoryPageDetails)
 

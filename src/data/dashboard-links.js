@@ -119,4 +119,11 @@ export const sidebarLinks = [
     type: ACCOUNT_TYPE.ADMIN,
     icon: "VscMilestone",
   },
+  {
+    id: 19,
+    name: "Audit Log",
+    path: "/dashboard/admin/audit-log",
+    type: ACCOUNT_TYPE.ADMIN,
+    icon: "VscHistory",
+  },
 ]

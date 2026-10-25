@@ -32,6 +32,20 @@ const schema = z.object({
   RABBITMQ_URL: optionalUrl(["amqp://", "amqps://"]),
   QDRANT_URL: optionalUrl(["http://", "https://"]),
   AI_SERVICE_URL: optionalUrl(["http://", "https://"]),
+  // Shared secret between Learnify services (internal API + AI service).
+  INTERNAL_API_TOKEN: z.string().min(24).optional(),
+
+  // Sessions: short access tokens, rotating refresh tokens (utils/sessions.js).
+  ACCESS_TOKEN_TTL: z.string().regex(/^\d+[smhd]$/, "use e.g. 15m or 1h").default("15m"),
+  REFRESH_TOKEN_TTL_DAYS: z.coerce.number().positive().default(7),
+  SESSION_MAX_DAYS: z.coerce.number().positive().default(30),
+  // 32-byte key (64 hex chars) for secrets at rest, e.g. TOTP seeds. Without it
+  // two-factor authentication cannot be turned on.
+  ENCRYPTION_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, "must be 64 hex characters (32 bytes)")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
 })
 
 // Production needs stronger guarantees than a laptop does.

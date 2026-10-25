@@ -29,6 +29,17 @@ describe("isTrustedVideoUrl", () => {
     expect(isTrustedVideoUrl(GOOD_URL)).toBe(true)
   })
 
+  test("accepts a video in a legacy folder listed in LEGACY_FOLDER_NAMES", () => {
+    const legacy = "https://res.cloudinary.com/testcloud/video/upload/v1/CodeHelp/old.mp4"
+    expect(isTrustedVideoUrl(legacy)).toBe(false)
+    process.env.LEGACY_FOLDER_NAMES = "CodeHelp"
+    try {
+      expect(isTrustedVideoUrl(legacy)).toBe(true)
+    } finally {
+      delete process.env.LEGACY_FOLDER_NAMES
+    }
+  })
+
   test.each([
     ["another Cloudinary account", "https://res.cloudinary.com/demo/video/upload/v1/Learnify/x.mp4"],
     ["an arbitrary site", "https://evil.example.com/x.mp4"],
@@ -55,7 +66,7 @@ describe("POST /course/uploadSignature", () => {
 
   test("is not available to students or anonymous visitors", async () => {
     const student = await createUser({ email: "s@example.com", accountType: "Student" })
-    expect((await request(app).post("/api/v1/course/uploadSignature").set(auth(student))).status).toBe(401)
+    expect((await request(app).post("/api/v1/course/uploadSignature").set(auth(student))).status).toBe(403)
     expect((await request(app).post("/api/v1/course/uploadSignature")).status).toBe(401)
   })
 })

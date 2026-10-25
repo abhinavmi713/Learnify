@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { toast } from "react-hot-toast"
 import { useSelector } from "react-redux"
 
+import { idempotencyKey } from "../../../../utils/idempotencyKey"
 import { apiConnector } from "../../../../services/apiConnector"
 import { couponEndpoints } from "../../../../services/apis"
 import Pagination from "../../../Common/Pagination"
@@ -54,18 +55,17 @@ export default function ManageCoupons() {
     }
     setSubmitting(true)
     try {
-      const res = await apiConnector(
-        "POST",
-        CREATE_COUPON_API,
-        {
-          code: form.code.trim(),
-          discountType: form.discountType,
-          discountValue: Number(form.discountValue),
-          maxUses: form.maxUses ? Number(form.maxUses) : undefined,
-          expiresAt: form.expiresAt || undefined,
-        },
-        { Authorization: `Bearer ${token}` }
-      )
+      const body = {
+        code: form.code.trim(),
+        discountType: form.discountType,
+        discountValue: Number(form.discountValue),
+        maxUses: form.maxUses ? Number(form.maxUses) : undefined,
+        expiresAt: form.expiresAt || undefined,
+      }
+      const res = await apiConnector("POST", CREATE_COUPON_API, body, {
+        Authorization: `Bearer ${token}`,
+        "Idempotency-Key": idempotencyKey("coupon", body),
+      })
       if (!res.data.success) throw new Error(res.data.message)
       toast.success("Coupon created")
       setForm({ code: "", discountType: "percentage", discountValue: "", maxUses: "", expiresAt: "" })

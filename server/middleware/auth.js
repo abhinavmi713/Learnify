@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
 const User = require("../models/User");
 const { isRevoked } = require("../utils/tokenRevocation");
+const { can } = require("../config/permissions");
 // Configuring dotenv to load environment variables from .env file
 dotenv.config();
 
@@ -51,16 +52,19 @@ async function verifyAccessToken(token) {
 exports.verifyAccessToken = verifyAccessToken;
 exports.AuthError = AuthError;
 
-// This function is used as middleware to authenticate user requests
+// Authenticates the request from its `Authorization: Bearer <access token>`
+// header. Only the header is accepted: a cookie-borne access token would make
+// every authenticated route a CSRF target. (The refresh token is a cookie, but it
+// is scoped to /api/v1/auth and only ever exchanged for a new access token.)
 exports.auth = async (req, res, next) => {
-	// Extracting JWT from request cookies, body or header
-	const token =
-		req.cookies.token ||
-		req.body?.token ||
-		req.header("Authorization")?.replace("Bearer ", "");
+	const header = req.header("Authorization") || "";
+	const token = header.startsWith("Bearer ") ? header.slice(7) : null;
 	try {
-		const { decoded } = await verifyAccessToken(token);
-		req.user = decoded;
+		const { decoded, user } = await verifyAccessToken(token);
+		// The role comes from the database, not the token, so a role change or
+		// demotion applies to the very next request.
+		req.user = { ...decoded, accountType: user.accountType };
+		req.authUser = user;
 		next();
 	} catch (error) {
 		if (error instanceof AuthError) {
@@ -72,54 +76,38 @@ exports.auth = async (req, res, next) => {
 		});
 	}
 };
-exports.isStudent = async (req, res, next) => {
-	try {
-		const userDetails = await User.findById(req.user.id);
 
-		if (userDetails.accountType !== "Student") {
-			return res.status(401).json({
-				success: false,
-				message: "This is a Protected Route for Students",
-			});
+// Like `auth`, but lets the request through without a user when there is no
+// valid token (req.user stays undefined).
+exports.optionalAuth = async (req, res, next) => {
+	const header = req.header("Authorization") || "";
+	const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+	if (token) {
+		try {
+			const { decoded, user } = await verifyAccessToken(token);
+			req.user = { ...decoded, accountType: user.accountType };
+			req.authUser = user;
+		} catch (error) {
+			// ignore: treated as anonymous
 		}
-		next();
-	} catch (error) {
-		return res
-			.status(500)
-			.json({ success: false, message: `User Role Can't be Verified` });
 	}
+	next();
 };
-exports.isAdmin = async (req, res, next) => {
-	try {
-		const userDetails = await User.findById(req.user.id);
 
-		if (userDetails.accountType !== "Admin") {
-			return res.status(401).json({
-				success: false,
-				message: "This is a Protected Route for Admin",
-			});
-		}
-		next();
-	} catch (error) {
-		return res
-			.status(500)
-			.json({ success: false, message: `User Role Can't be Verified` });
-	}
-};
-exports.isInstructor = async (req, res, next) => {
-	try {
-		const userDetails = await User.findById(req.user.id);
+// Authorization. 401 means "who are you?" (handled by `auth`); 403 means "we know
+// who you are and you may not do this".
+const forbidden = (res, message) => res.status(403).json({ success: false, message });
 
-		if (userDetails.accountType !== "Instructor") {
-			return res.status(401).json({
-				success: false,
-				message: "This is a Protected Route for Instructor",
-			});
-		}
-		next();
-	} catch (error) {
-		return res
-			.status(500)
-			.json({ success: false, message: `User Role Can't be Verified` });
-	}
+// Requires every listed permission (see config/permissions.js).
+exports.requirePermission = (...permissions) => (req, res, next) => {
+	const role = req.user?.accountType;
+	if (permissions.every((p) => can(role, p))) return next();
+	return forbidden(res, "You do not have permission to do this");
 };
+
+const requireRole = (role, message) => (req, res, next) =>
+	req.user?.accountType === role ? next() : forbidden(res, message);
+
+exports.isStudent = requireRole("Student", "This is a Protected Route for Students");
+exports.isAdmin = requireRole("Admin", "This is a Protected Route for Admin");
+exports.isInstructor = requireRole("Instructor", "This is a Protected Route for Instructor");

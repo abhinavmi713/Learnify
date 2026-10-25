@@ -4,6 +4,7 @@ import rzpLogo from "../../assets/Logo/rzp_logo.png"
 import { resetCart } from "../../slices/cartSlice"
 import { setPaymentLoading } from "../../slices/courseSlice"
 import { apiConnector } from "../apiConnector"
+import { idempotencyKey } from "../../utils/idempotencyKey"
 import { studentEndpoints } from "../apis"
 
 const {
@@ -48,6 +49,8 @@ export async function BuyCourse(
       },
       {
         Authorization: `Bearer ${token}`,
+        // Same cart + coupon = same key: a double click creates one order.
+        "Idempotency-Key": idempotencyKey("checkout", user_details?._id || "", [...courses].sort(), couponCode || ""),
       }
     )
 
@@ -114,6 +117,8 @@ async function verifyPayment(bodyData, token, navigate, dispatch) {
   try {
     const response = await apiConnector("POST", COURSE_VERIFY_API, bodyData, {
       Authorization: `Bearer ${token}`,
+      // The payment id is unique, so retries of this verification are replayed.
+      ...(bodyData?.razorpay_payment_id ? { "Idempotency-Key": `verify-${bodyData.razorpay_payment_id}` } : {}),
     })
 
     console.log("VERIFY PAYMENT RESPONSE FROM BACKEND............", response)

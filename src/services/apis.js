@@ -6,6 +6,7 @@ export const endpoints = {
   SIGNUP_API: BASE_URL + "/api/v1/auth/signup",
   LOGIN_API: BASE_URL + "/api/v1/auth/login",
   LOGOUT_API: BASE_URL + "/api/v1/auth/logout",
+  LOGIN_2FA_API: BASE_URL + "/api/v1/auth/login/2fa",
   RESETPASSTOKEN_API: BASE_URL + "/api/v1/auth/reset-password-token",
   RESETPASSWORD_API: BASE_URL + "/api/v1/auth/reset-password",
 };
@@ -118,6 +119,7 @@ export const adminEndpoints = {
   UPDATE_CATEGORY_API: BASE_URL + "/api/v1/course/updateCategory",
   DELETE_CATEGORY_API: BASE_URL + "/api/v1/course/deleteCategory",
   CREATE_CATEGORY_API: BASE_URL + "/api/v1/course/createCategory",
+  GET_AUDIT_LOGS_API: BASE_URL + "/api/v1/admin/audit-logs",
 };
 
 // NOTIFICATION ENDPOINTS
@@ -166,4 +168,14 @@ export const settingsEndpoints = {
   UPDATE_PROFILE_API: BASE_URL + "/api/v1/profile/updateProfile",
   CHANGE_PASSWORD_API: BASE_URL + "/api/v1/auth/changepassword",
   DELETE_PROFILE_API: BASE_URL + "/api/v1/profile/deleteProfile",
+};
+
+// ACCOUNT SECURITY (sessions + two-factor authentication)
+export const securityEndpoints = {
+  SESSIONS_API: BASE_URL + "/api/v1/auth/sessions",
+  REVOKE_SESSION_API: BASE_URL + "/api/v1/auth/sessions/revoke",
+  LOGOUT_ALL_API: BASE_URL + "/api/v1/auth/logout-all",
+  TWO_FA_SETUP_API: BASE_URL + "/api/v1/auth/2fa/setup",
+  TWO_FA_ENABLE_API: BASE_URL + "/api/v1/auth/2fa/enable",
+  TWO_FA_DISABLE_API: BASE_URL + "/api/v1/auth/2fa/disable",
 };

@@ -6,7 +6,8 @@ const crypto = require("crypto")
 const { runInTransaction } = require("../utils/transaction")
 const { enqueueEvent } = require("../events/outbox")
 const { EVENTS } = require("../events/types")
-const { revokeToken } = require("../utils/tokenRevocation")
+const { startSession, endSession, revokeAllSessions } = require("../utils/sessions")
+const { recordAudit } = require("../utils/audit")
 const logger = require("../utils/logger")
 const { passwordUpdated } = require("../mail/templates/passwordUpdate")
 const Profile = require("../models/Profile")
@@ -149,14 +150,37 @@ exports.signup = async (req, res) => {
 const MAX_FAILED_ATTEMPTS = 5
 const LOCK_DURATION_MS = 15 * 60 * 1000 // 15 minutes
 
-// Login controller for authenticating users
-// Ends this session server-side: the token's id goes on the revocation list so a
-// copy of it (e.g. from a stolen device) stops working immediately.
+// Ends this session server-side: the access token's id goes on the revocation
+// list and its refresh-token family is revoked, so a copy of either (e.g. from a
+// stolen device) stops working immediately.
 exports.logout = async (req, res) => {
-  await revokeToken(req.user)
-  res.clearCookie("token")
+  await endSession(req, res)
   return res.status(200).json({ success: true, message: "Logged out" })
 }
+
+// Short-lived proof that the password step passed, exchanged for a session once
+// the second factor is verified (controllers/Security.js).
+function signTwoFactorChallenge(user) {
+  return jwt.sign(
+    { id: String(user._id), purpose: "2fa", tokenVersion: user.tokenVersion || 0 },
+    process.env.JWT_SECRET,
+    { expiresIn: "5m" }
+  )
+}
+exports.signTwoFactorChallenge = signTwoFactorChallenge
+
+// Sends the session to the client: access token in the body, refresh token in an
+// httpOnly cookie.
+async function completeLogin(req, res, user) {
+  const token = await startSession(req, res, user)
+  const safeUser = user.toObject ? user.toObject() : { ...user }
+  delete safeUser.password
+  delete safeUser.twoFactor
+  delete safeUser.token
+  await recordAudit(req, { action: "auth.login", actor: user, metadata: { twoFactor: Boolean(user.twoFactorEnabled) } })
+  return res.status(200).json({ success: true, token, user: safeUser, message: `User Login Success` })
+}
+exports.completeLogin = completeLogin
 
 exports.login = async (req, res) => {
   try {
@@ -177,6 +201,7 @@ exports.login = async (req, res) => {
 
     // If user not found with provided email
     if (!user) {
+      await recordAudit(req, { action: "auth.login", outcome: "failure", metadata: { email, reason: "unknown_email" } })
       // Return 401 Unauthorized status code with error message
       return res.status(401).json({
         success: false,
@@ -211,35 +236,17 @@ exports.login = async (req, res) => {
         })
       }
 
-      const token = jwt.sign(
-        {
-          email: user.email,
-          id: user._id,
-          role: user.role,
-          tokenVersion: user.tokenVersion || 0,
-        },
-        process.env.JWT_SECRET,
-        {
-          expiresIn: "24h",
-          // Unique id so this one session can be revoked on logout.
-          jwtid: crypto.randomUUID(),
-        }
-      )
-
-      // Save token to user document in database
-      user.token = token
-      user.password = undefined
-      // Set cookie for token and return success response
-      const options = {
-        expires: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-        httpOnly: true,
+      // Accounts with two-factor authentication get a session only after the
+      // second step.
+      if (user.twoFactorEnabled) {
+        return res.status(200).json({
+          success: true,
+          twoFactorRequired: true,
+          challenge: signTwoFactorChallenge(user),
+          message: "Enter the code from your authenticator app",
+        })
       }
-      res.cookie("token", token, options).status(200).json({
-        success: true,
-        token,
-        user,
-        message: `User Login Success`,
-      })
+      return completeLogin(req, res, user)
     } else {
       // Failed attempt: increment counter and lock the account if the
       // threshold is reached.
@@ -250,6 +257,12 @@ exports.login = async (req, res) => {
         update.failedLoginAttempts = 0
       }
       await User.findByIdAndUpdate(user._id, update)
+      await recordAudit(req, {
+        action: "auth.login",
+        outcome: "failure",
+        actor: user,
+        metadata: { reason: "bad_password", locked: Boolean(update.lockUntil) },
+      })
 
       return res.status(401).json({
         success: false,
@@ -355,6 +368,9 @@ exports.changePassword = async (req, res) => {
         { session }
       )
     })
+
+    await revokeAllSessions(req.user.id, "password_changed")
+    await recordAudit(req, { action: "auth.password_changed", targetType: "user", targetId: req.user.id })
 
     // Return success response
     return res

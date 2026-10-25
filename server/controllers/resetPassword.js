@@ -1,3 +1,5 @@
+const { revokeAllSessions } = require("../utils/sessions")
+const { recordAudit } = require("../utils/audit")
 const User = require("../models/User")
 const { enqueueEvent } = require("../events/outbox")
 const { EVENTS } = require("../events/types")
@@ -116,6 +118,9 @@ exports.resetPassword = async (req, res) => {
       },
       { new: true }
     )
+
+    await revokeAllSessions(userDetails._id, "password_reset")
+    await recordAudit(req, { action: "auth.password_reset", actor: userDetails, targetType: "user", targetId: userDetails._id })
 
     res.json({
       success: true,

@@ -1,7 +1,7 @@
 import { landingPathFor } from "../../utils/landing"
 import { toast } from "react-hot-toast"
 
-import { setLoading, setToken } from "../../slices/authSlice"
+import { setLoading, setToken, setTwoFactorChallenge } from "../../slices/authSlice"
 import { resetCart } from "../../slices/cartSlice"
 import { setUser } from "../../slices/profileSlice"
 import { apiConnector } from "../apiConnector"
@@ -12,6 +12,7 @@ const {
   SIGNUP_API,
   LOGIN_API,
   LOGOUT_API,
+  LOGIN_2FA_API,
   RESETPASSTOKEN_API,
   RESETPASSWORD_API,
 } = endpoints
@@ -85,6 +86,21 @@ export function signUp(
   }
 }
 
+// Stores the new session and leaves the login page.
+function finishLogin(dispatch, data, navigate) {
+  dispatch(setTwoFactorChallenge(null))
+  toast.success("Login Successful")
+  dispatch(setToken(data.token))
+  const userImage = data?.user?.image
+    ? data.user.image
+    : `https://api.dicebear.com/5.x/initials/svg?seed=${data.user.firstName} ${data.user.lastName}`
+  dispatch(setUser({ ...data.user, image: userImage }))
+  localStorage.setItem("token", JSON.stringify(data.token))
+  navigate(landingPathFor(data.user))
+}
+
+// Logs in, or, when the account has two-factor authentication, stores the
+// challenge so the form asks for the code.
 export function login(email, password, navigate) {
   return async (dispatch) => {
     const toastId = toast.loading("Loading...")
@@ -95,26 +111,39 @@ export function login(email, password, navigate) {
         password,
       })
 
-      console.log("LOGIN API RESPONSE............", response)
-
       if (!response.data.success) {
         throw new Error(response.data.message)
       }
 
-      toast.success("Login Successful")
-      dispatch(setToken(response.data.token))
-      const userImage = response.data?.user?.image
-        ? response.data.user.image
-        : `https://api.dicebear.com/5.x/initials/svg?seed=${response.data.user.firstName} ${response.data.user.lastName}`
-      dispatch(setUser({ ...response.data.user, image: userImage }))
-      localStorage.setItem("token", JSON.stringify(response.data.token))
-      navigate(landingPathFor(response.data.user))
+      if (response.data.twoFactorRequired) {
+        dispatch(setTwoFactorChallenge(response.data.challenge))
+      } else {
+        finishLogin(dispatch, response.data, navigate)
+      }
     } catch (error) {
       console.log("LOGIN API ERROR............", error)
       toast.error(error?.response?.data?.message || "Login Failed")
     }
     dispatch(setLoading(false))
     toast.dismiss(toastId)
+  }
+}
+
+// Second login step: authenticator code or a recovery code.
+export function loginWithTwoFactor(challenge, code, navigate) {
+  return async (dispatch) => {
+    dispatch(setLoading(true))
+    let ok = false
+    try {
+      const response = await apiConnector("POST", LOGIN_2FA_API, { challenge, code })
+      if (!response.data.success) throw new Error(response.data.message)
+      finishLogin(dispatch, response.data, navigate)
+      ok = true
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Could not verify the code")
+    }
+    dispatch(setLoading(false))
+    return ok
   }
 }
 
@@ -176,10 +205,10 @@ export function logout(navigate) {
   return (dispatch, getState) => {
     // Revoke the session on the server too (best effort: the user is logged out
     // locally either way).
+    // The refresh cookie identifies the session even if the access token has
+    // already expired, so this is always sent.
     const token = getState()?.auth?.token
-    if (token) {
-      apiConnector("POST", LOGOUT_API, null, { Authorization: `Bearer ${token}` }).catch(() => {})
-    }
+    apiConnector("POST", LOGOUT_API, null, token ? { Authorization: `Bearer ${token}` } : {}).catch(() => {})
     dispatch(setToken(null))
     dispatch(setUser(null))
     dispatch(resetCart())

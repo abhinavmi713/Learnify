@@ -28,7 +28,7 @@ async function authorizeSectionOwner(req, res, sectionId) {
 exports.createSubSection = async (req, res) => {
   try {
     // Extract necessary information from the request body
-    const { sectionId, title, description, videoUrl, duration } = req.body
+    const { sectionId, title, description, videoUrl, duration, transcript } = req.body
     const video = req.files && req.files.video
 
     // Check if all necessary fields are provided. The video arrives either as
@@ -61,6 +61,7 @@ exports.createSubSection = async (req, res) => {
       timeDuration,
       description: description,
       videoUrl: secureUrl,
+      transcript: typeof transcript === "string" ? transcript.slice(0, 20000) : "",
     })
 
     // Update the corresponding section with the newly created sub-section
@@ -85,7 +86,7 @@ exports.createSubSection = async (req, res) => {
 
 exports.updateSubSection = async (req, res) => {
   try {
-    const { sectionId, subSectionId, title, description, videoUrl, duration } = req.body
+    const { sectionId, subSectionId, title, description, videoUrl, duration, transcript } = req.body
 
     if (!sectionId || !subSectionId) {
       return res.status(400).json({
@@ -111,6 +112,9 @@ exports.updateSubSection = async (req, res) => {
 
     if (description !== undefined) {
       subSection.description = description
+    }
+    if (transcript !== undefined) {
+      subSection.transcript = String(transcript).slice(0, 20000)
     }
     if (videoUrl !== undefined) {
       if (!isTrustedVideoUrl(videoUrl)) {

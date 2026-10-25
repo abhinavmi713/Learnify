@@ -10,6 +10,10 @@
 #   redis      6379
 #   rabbitmq   5672 (AMQP), 15672 (management UI: guest / guest)
 #   qdrant     6333 (HTTP), 6334 (gRPC)   vector database for the RAG service
+#
+# The AI service is opt-in (it needs ai-service/.env with a Gemini key):
+#   docker compose --profile ai up -d --build
+#   ai-service 5001   reads course content from the API running on the host
 
 services:
   mongo:
@@ -74,6 +78,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+  ai-service:
+    profiles: ["ai"]
+    build: ./ai-service
+    env_file: ./ai-service/.env
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      API_INTERNAL_URL: http://host.docker.internal:4000/api/v1/internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "5001:5001"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
 volumes:
   mongo-data:

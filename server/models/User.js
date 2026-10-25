@@ -55,6 +55,26 @@ const userSchema = new mongoose.Schema(
     lockUntil: {
       type: Date,
     },
+    // Public flag the UI can read; the secrets live in `twoFactor`, which is
+    // never selected unless asked for explicitly.
+    twoFactorEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    twoFactor: {
+      type: {
+        // AES-256-GCM encrypted TOTP secrets (utils/secretBox.js).
+        secret: { type: String, default: null },
+        pendingSecret: { type: String, default: null },
+        // Last accepted 30-second step, so a code cannot be replayed.
+        lastUsedStep: { type: Number, default: 0 },
+        // SHA-256 hashes of single-use recovery codes.
+        recoveryCodes: { type: [String], default: [] },
+        enabledAt: { type: Date, default: null },
+      },
+      select: false,
+      default: () => ({}),
+    },
     approved: {
       type: Boolean,
       default: true,

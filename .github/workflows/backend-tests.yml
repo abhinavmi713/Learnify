@@ -1,6 +1,6 @@
 name: CI
 
-# Runs the backend Jest suite, the frontend tests and a production frontend
+# Runs the backend and AI service Jest suites, the frontend tests and a production frontend
 # build on every push and pull request. The build runs with CI=true (as Vercel
 # and Netlify do), so lint warnings fail it here instead of at deploy time.
 on:
@@ -28,6 +28,23 @@ jobs:
           # The suite uses an in-memory MongoDB; these only need to exist.
           JWT_SECRET: test-secret-only-used-in-ci
           NODE_ENV: test
+
+  ai-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ai-service/package-lock.json
+      # Unit and HTTP tests with fake embeddings and a fake vector store: no
+      # Gemini key, Qdrant or RabbitMQ needed.
+      - run: npm ci
+      - run: npm test
 
   frontend:
     runs-on: ubuntu-latest

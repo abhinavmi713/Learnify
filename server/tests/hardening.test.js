@@ -91,7 +91,7 @@ describe("catalog cache + archive/restore", () => {
 
   test("only admins can see or restore archived courses", async () => {
     const instructor = await createUser({ email: "i2@example.com", accountType: "Instructor" })
-    expect((await request(app).get("/api/v1/admin/courses/archived").set(auth(instructor))).status).toBe(401)
+    expect((await request(app).get("/api/v1/admin/courses/archived").set(auth(instructor))).status).toBe(403)
   })
 })
 

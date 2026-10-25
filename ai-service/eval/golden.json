@@ -1,0 +1,17 @@
+[
+  { "course": "JavaScript Fundamentals", "question": "Why should I avoid var?", "expect": "Functions and scope" },
+  { "course": "JavaScript Fundamentals", "question": "What is a closure and what did we build with it?", "expect": "Functions and scope" },
+  { "course": "JavaScript Fundamentals", "question": "Can I call a function before it is defined?", "expect": "Functions and scope" },
+  { "course": "JavaScript Fundamentals", "question": "Does map change the original array?", "expect": "Arrays and objects" },
+  { "course": "JavaScript Fundamentals", "question": "How do I add up all the numbers in an array?", "expect": "Arrays and objects" },
+  { "course": "JavaScript Fundamentals", "question": "Which extension formats my code when I save?", "expect": "Setting up your editor" },
+  { "course": "JavaScript Fundamentals", "question": "Who created JavaScript?", "expect": "Why JavaScript?" },
+  { "course": "Python for Data Analysis", "question": "How do I see how many values are missing in each column?", "expect": "Cleaning data" },
+  { "course": "Python for Data Analysis", "question": "What is the difference between loc and iloc?", "expect": "DataFrames in 10 minutes" },
+  { "course": "Python for Data Analysis", "question": "How do I turn text dates into real dates?", "expect": "Cleaning data" },
+  { "course": "UI Design Basics", "question": "What spacing values should I use?", "expect": "Hierarchy and layout" },
+  { "course": "UI Design Basics", "question": "How long should a line of text be?", "expect": "Hierarchy and layout" },
+  { "course": "JavaScript Fundamentals", "question": "What is the capital of Australia?", "expect": null },
+  { "course": "Python for Data Analysis", "question": "How do I train a neural network in PyTorch?", "expect": null },
+  { "course": "UI Design Basics", "question": "How do I configure a Kubernetes ingress?", "expect": null }
+]

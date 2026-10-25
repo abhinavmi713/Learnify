@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react"
 import { useSelector } from "react-redux"
 import { io } from "socket.io-client"
+import { refreshSession } from "../services/apiConnector"
 
 // One Socket.IO connection per logged-in session, shared by every component.
 // It connects when a token appears, reconnects on its own, and disconnects on
@@ -11,30 +12,42 @@ export function SocketProvider({ children }) {
   const { token } = useSelector((state) => state.auth)
   const [socket, setSocket] = useState(null)
   const [connected, setConnected] = useState(false)
+  // Access tokens are refreshed every few minutes; the socket reads the latest
+  // one whenever it (re)connects instead of being torn down on each refresh.
+  const tokenRef = useRef(token)
+  tokenRef.current = token
+  const loggedIn = Boolean(token)
 
   useEffect(() => {
-    if (!token || !process.env.REACT_APP_BASE_URL) {
+    if (!loggedIn || !process.env.REACT_APP_BASE_URL) {
       setSocket(null)
       setConnected(false)
       return undefined
     }
     const s = io(process.env.REACT_APP_BASE_URL, {
-      auth: { token },
+      auth: (cb) => cb({ token: tokenRef.current }),
       transports: ["websocket", "polling"],
       reconnectionDelayMax: 10000,
     })
     s.on("connect", () => setConnected(true))
     s.on("disconnect", () => setConnected(false))
-    // An expired or revoked session cannot connect; stop retrying with it.
+    // An expired access token is refreshed by the next API call; retry a few
+    // times before giving up on a session that is really over.
+    let authFailures = 0
+    s.on("connect", () => (authFailures = 0))
     s.on("connect_error", (error) => {
-      if (/token|session|User not found|deactivated/i.test(error.message)) s.disconnect()
+      if (!/token|session|User not found|deactivated/i.test(error.message)) return
+      if (++authFailures >= 5) return s.disconnect()
+      // Usually just an expired access token: refresh it; the next attempt
+      // picks up the new one.
+      refreshSession().catch(() => {})
     })
     setSocket(s)
     return () => {
       s.removeAllListeners()
       s.disconnect()
     }
-  }, [token])
+  }, [loggedIn])
 
   return <SocketContext.Provider value={{ socket, connected }}>{children}</SocketContext.Provider>
 }

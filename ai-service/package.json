@@ -1,0 +1,29 @@
+{
+  "name": "learnify-ai-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Learnify AI service: course-grounded Q&A (RAG) over Qdrant with Gemini embeddings",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest",
+    "reindex": "node scripts/reindexAll.js",
+    "eval": "node scripts/evalRetrieval.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "amqplib": "^2.2.0",
+    "dotenv": "^18.0.9",
+    "express": "^5.3.0",
+    "pino": "^10.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "jest": "^30.5.2",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.3.1"
+  }
+}

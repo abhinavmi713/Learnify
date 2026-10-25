@@ -7,6 +7,7 @@ const EVENTS = {
   PASSWORD_CHANGED: "password.changed",
   ORDER_PAID: "order.paid",
   COURSE_COMPLETED: "course.completed",
+  COURSE_CONTENT_CHANGED: "course.content_changed",
   CONTACT_SUBMITTED: "contact.submitted",
   PAYMENT_REFUND_REQUESTED: "payment.refund_requested",
 }

@@ -202,7 +202,7 @@ describe("token revocation and logout", () => {
 
     const auth = { Authorization: `Bearer ${token}` }
     expect((await request(app).get("/api/v1/profile/getUserDetails").set(auth)).status).toBe(200)
-    expect((await request(app).post("/api/v1/auth/logout").set(auth)).status).toBe(200)
+    expect((await request(app).post("/api/v1/auth/logout").set(auth).set("X-Requested-With", "XMLHttpRequest")).status).toBe(200)
     const after = await request(app).get("/api/v1/profile/getUserDetails").set(auth)
     expect(after.status).toBe(401)
   })

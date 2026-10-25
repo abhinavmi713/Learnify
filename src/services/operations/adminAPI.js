@@ -15,6 +15,7 @@ const {
   UPDATE_CATEGORY_API,
   DELETE_CATEGORY_API,
   CREATE_CATEGORY_API,
+  GET_AUDIT_LOGS_API,
 } = adminEndpoints
 
 // List endpoints are paginated server-side; these return { items, pagination }
@@ -191,5 +192,22 @@ export async function deleteCategory(categoryId, token) {
   } catch (error) {
     toast.error(error?.response?.data?.message || "Could not delete category")
     return false
+  }
+}
+
+// Audit log, newest first. Pass the previous page's nextCursor as `before`.
+export async function getAuditLogs(token, { action = "", outcome = "", actor = "", before = "" } = {}) {
+  try {
+    const res = await apiConnector(
+      "GET",
+      GET_AUDIT_LOGS_API,
+      null,
+      { Authorization: `Bearer ${token}` },
+      { action: action || undefined, outcome: outcome || undefined, actor: actor || undefined, before: before || undefined, limit: 25 }
+    )
+    return { items: res.data.data, nextCursor: res.data.nextCursor, actions: res.data.actions }
+  } catch (error) {
+    toast.error("Could not load the audit log")
+    return { items: [], nextCursor: null, actions: [] }
   }
 }

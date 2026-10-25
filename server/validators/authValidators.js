@@ -50,7 +50,22 @@ const resetPasswordSchema = z
     path: ["confirmPassword"],
   })
 
+// 6-digit authenticator code or a recovery code like "a1b2c-3d4e5".
+const secondFactorCode = z.string().trim().min(6).max(20)
+
+const loginTwoFactorSchema = z.object({
+  challenge: z.string().min(1, "Sign-in expired, please log in again"),
+  code: secondFactorCode,
+})
+const twoFactorCodeSchema = z.object({ code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code") })
+const disableTwoFactorSchema = z.object({ password: z.string().min(1, "Password is required"), code: secondFactorCode })
+const revokeSessionSchema = z.object({ sessionId: z.string().uuid() })
+
 module.exports = {
+  loginTwoFactorSchema,
+  twoFactorCodeSchema,
+  disableTwoFactorSchema,
+  revokeSessionSchema,
   signupSchema,
   loginSchema,
   sendOtpSchema,

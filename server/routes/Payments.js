@@ -8,9 +8,15 @@ const {
   sendPaymentSuccessEmail,
   razorpayWebhook,
 } = require("../controllers/payments")
-const { auth, isInstructor, isStudent, isAdmin } = require("../middleware/auth")
-router.post("/capturePayment", auth, isStudent, capturePayment)
-router.post("/verifyPayment", auth, isStudent, verifyPayment)
+const { auth, isStudent, requirePermission } = require("../middleware/auth")
+const { idempotent } = require("../middleware/idempotency")
+
+// A double-clicked "Buy" or a retried request must not create two orders (or
+// enroll twice for free courses): the client sends one Idempotency-Key per
+// checkout attempt and a repeat gets the first response back.
+const purchase = requirePermission("course:purchase")
+router.post("/capturePayment", auth, purchase, idempotent(), capturePayment)
+router.post("/verifyPayment", auth, purchase, idempotent(), verifyPayment)
 router.post(
   "/sendPaymentSuccessEmail",
   auth,

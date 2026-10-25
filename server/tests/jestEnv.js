@@ -7,4 +7,5 @@
 process.env.REDIS_URL = ""
 process.env.RABBITMQ_URL = ""
 process.env.QDRANT_URL = ""
+process.env.LEGACY_FOLDER_NAMES = ""
 process.env.NODE_ENV = "test"

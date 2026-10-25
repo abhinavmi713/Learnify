@@ -48,6 +48,7 @@ const addSubSectionSchema = z.object({
   description: z.string().trim().max(1000).optional(),
   videoUrl: z.string().trim().url().optional(),
   duration: nonNegativeNumberLike.optional(),
+  transcript: z.string().max(20000).optional(),
 })
 const updateSubSectionSchema = z.object({
   sectionId: objectId,
@@ -56,6 +57,7 @@ const updateSubSectionSchema = z.object({
   description: z.string().trim().max(1000).optional(),
   videoUrl: z.string().trim().url().optional(),
   duration: nonNegativeNumberLike.optional(),
+  transcript: z.string().max(20000).optional(),
 })
 const deleteSubSectionSchema = z.object({ sectionId: objectId, subSectionId: objectId })
 

@@ -6,6 +6,9 @@ const CourseProgress = require("../models/CourseProgress")
 const { notifyUser } = require("../utils/notify")
 const { bucketByMonth } = require("../utils/analytics")
 const { getPagination, buildPaginationMeta } = require("../utils/pagination")
+const AuditLog = require("../models/AuditLog")
+const mongoose = require("mongoose")
+const { revokeAllSessions } = require("../utils/sessions")
 
 // ********************************************************************************************************
 //                                      Course moderation
@@ -211,6 +214,9 @@ exports.setUserActive = async (req, res) => {
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" })
     }
+    // Access tokens already stop working (auth checks `active`); this also ends
+    // their refresh sessions so nothing lingers if they are re-activated.
+    if (!active) await revokeAllSessions(user._id, "deactivated")
 
     return res.status(200).json({
       success: true,
@@ -279,4 +285,36 @@ exports.getPlatformAnalytics = async (req, res) => {
     console.error(error)
     return res.status(500).json({ success: false, message: error.message })
   }
+}
+
+// ********************************************************************************************************
+//                                      Audit log
+// ********************************************************************************************************
+
+// Newest first, keyset ("cursor") pagination: `?before=<id of the last row seen>`.
+// Unlike skip/limit this stays fast however deep you page, and rows inserted
+// while paging do not shift the pages.
+exports.getAuditLogs = async (req, res) => {
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 25))
+  const filter = {}
+  if (req.query.action) filter.action = String(req.query.action)
+  if (["success", "failure"].includes(req.query.outcome)) filter.outcome = req.query.outcome
+  if (req.query.actor) filter.actorEmail = String(req.query.actor).trim().toLowerCase()
+  if (req.query.before) {
+    if (!mongoose.isValidObjectId(req.query.before)) {
+      return res.status(400).json({ success: false, message: "Invalid cursor" })
+    }
+    filter._id = { $lt: new mongoose.Types.ObjectId(String(req.query.before)) }
+  }
+
+  const rows = await AuditLog.find(filter).sort({ _id: -1 }).limit(limit + 1).lean()
+  const hasMore = rows.length > limit
+  const data = rows.slice(0, limit)
+  const actions = await AuditLog.distinct("action")
+  return res.status(200).json({
+    success: true,
+    data,
+    nextCursor: hasMore ? String(data[data.length - 1]._id) : null,
+    actions: actions.sort(),
+  })
 }

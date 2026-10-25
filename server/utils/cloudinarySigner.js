@@ -27,15 +27,24 @@ function signVideoUpload() {
   return { cloudName, apiKey, timestamp, folder, signature }
 }
 
+// Folders our own videos may live in: the current upload folder plus any
+// previous ones (LEGACY_FOLDER_NAMES, comma-separated), so renaming the upload
+// folder never invalidates lectures that were uploaded before the change.
+function trustedFolders() {
+  const { FOLDER_NAME, LEGACY_FOLDER_NAMES } = process.env
+  return [FOLDER_NAME, ...(LEGACY_FOLDER_NAMES || "").split(",")].map((f) => (f || "").trim()).filter(Boolean)
+}
+
 // True only for a video that lives in our own account (and folder). Without
 // this check an instructor could attach any URL on the internet as a lecture.
 function isTrustedVideoUrl(url) {
   if (typeof url !== "string") return false
-  const { CLOUD_NAME, FOLDER_NAME } = process.env
+  const { CLOUD_NAME } = process.env
   if (!CLOUD_NAME) return false
   const prefix = `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/`
   if (!url.startsWith(prefix)) return false
-  return FOLDER_NAME ? url.includes(`/${FOLDER_NAME}/`) : true
+  const folders = trustedFolders()
+  return folders.length ? folders.some((f) => url.includes(`/${f}/`)) : true
 }
 
 module.exports = { signVideoUpload, isTrustedVideoUrl }

@@ -44,6 +44,7 @@ export default function SubSectionModal({
       // console.log("modalData", modalData)
       setValue("lectureTitle", modalData.title)
       setValue("lectureDesc", modalData.description)
+      setValue("lectureTranscript", modalData.transcript || "")
       setValue("lectureVideo", modalData.videoUrl)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -56,6 +57,7 @@ export default function SubSectionModal({
     if (
       currentValues.lectureTitle !== modalData.title ||
       currentValues.lectureDesc !== modalData.description ||
+      currentValues.lectureTranscript !== (modalData.transcript || "") ||
       currentValues.lectureVideo !== modalData.videoUrl
     ) {
       return true
@@ -94,6 +96,9 @@ export default function SubSectionModal({
     }
     if (currentValues.lectureDesc !== modalData.description) {
       formData.append("description", currentValues.lectureDesc)
+    }
+    if (currentValues.lectureTranscript !== (modalData.transcript || "")) {
+      formData.append("transcript", currentValues.lectureTranscript)
     }
     setLoading(true)
     if (currentValues.lectureVideo !== modalData.videoUrl) {
@@ -142,6 +147,7 @@ export default function SubSectionModal({
     formData.append("sectionId", modalData)
     formData.append("title", data.lectureTitle)
     formData.append("description", data.lectureDesc)
+    if (data.lectureTranscript) formData.append("transcript", data.lectureTranscript)
     formData.append("videoUrl", uploaded.videoUrl)
     formData.append("duration", uploaded.duration)
     const result = await createSubSection(formData, token)
@@ -219,6 +225,27 @@ export default function SubSectionModal({
             {errors.lectureDesc && (
               <span className="ml-2 text-xs tracking-wide text-pink-200">
                 Lecture Description is required
+              </span>
+            )}
+          </div>
+          {/* Lecture Transcript (optional) */}
+          <div className="flex flex-col space-y-2">
+            <label className="text-sm text-richblack-5" htmlFor="lectureTranscript">
+              Transcript{" "}
+              <span className="text-xs text-richblack-300">
+                (optional, helps the course AI assistant answer questions)
+              </span>
+            </label>
+            <textarea
+              disabled={view || loading}
+              id="lectureTranscript"
+              placeholder="Paste the lecture transcript or detailed notes"
+              {...register("lectureTranscript", { maxLength: 20000 })}
+              className="form-style resize-x-none min-h-[130px] w-full"
+            />
+            {errors.lectureTranscript && (
+              <span className="ml-2 text-xs tracking-wide text-pink-200">
+                Transcript can be at most 20,000 characters
               </span>
             )}
           </div>

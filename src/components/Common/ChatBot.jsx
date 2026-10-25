@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSelector } from "react-redux";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { apiConnector } from "../../services/apiConnector";
 import { chatbotEndpoints } from "../../services/apis";
@@ -43,7 +43,16 @@ export default function ChatBot() {
       const data = response.data;
 
       if (data && data.reply) {
-        setMessages((prev) => [...prev, { role: "bot", text: data.reply }]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "bot",
+            text: data.reply,
+            grounded: Boolean(data.grounded),
+            citations: data.citations || [],
+            courseId: data.courseId,
+          },
+        ]);
       } else {
         setMessages((prev) => [
           ...prev,
@@ -98,10 +107,10 @@ export default function ChatBot() {
             {messages.map((msg, idx) => (
               <div
                 key={idx}
-                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
               >
                 <div
-                  className={`max-w-xs px-3 py-2 rounded-lg text-sm ${
+                  className={`max-w-xs px-3 py-2 rounded-lg text-sm whitespace-pre-line ${
                     msg.role === "user"
                       ? "bg-yellow-50 text-richblack-900 rounded-br-none"
                       : "bg-richblack-800 text-richblack-5 rounded-bl-none shadow-sm border border-richblack-700"
@@ -109,6 +118,34 @@ export default function ChatBot() {
                 >
                   {msg.text}
                 </div>
+                {msg.grounded && (
+                  <span className="mt-1 text-[11px] font-semibold text-caribbeangreen-100">
+                    Answered from this course
+                  </span>
+                )}
+                {msg.citations?.length > 0 && (
+                  <div className="mt-1 flex max-w-xs flex-wrap gap-1">
+                    {msg.citations.map((c, i) =>
+                      c.subSectionId ? (
+                        <Link
+                          key={c.subSectionId}
+                          to={`/view-course/${msg.courseId}/section/${c.sectionId}/sub-section/${c.subSectionId}`}
+                          className="rounded-full border border-richblack-600 bg-richblack-800 px-2 py-0.5 text-[11px] text-richblack-100 hover:border-yellow-50 hover:text-yellow-50"
+                          title={`Open lecture: ${c.title}`}
+                        >
+                          [{i + 1}] {c.title}
+                        </Link>
+                      ) : (
+                        <span
+                          key={`overview-${i}`}
+                          className="rounded-full border border-richblack-600 bg-richblack-800 px-2 py-0.5 text-[11px] text-richblack-100"
+                        >
+                          [{i + 1}] Course overview
+                        </span>
+                      )
+                    )}
+                  </div>
+                )}
               </div>
             ))}
             {loading && (
@@ -149,7 +186,7 @@ export default function ChatBot() {
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="bg-yellow-50 text-richblack-900 p-4 rounded-full shadow-card hover:scale-105 transition-all duration-200"
+          className="bg-yellow-50 text-richblack-900 p-3 sm:p-4 rounded-full shadow-card hover:scale-105 transition-all duration-200"
           title="Open Learning Assistant"
         >
           <span className="text-xl">🤖</span>
