@@ -7,6 +7,7 @@ const createCouponSchema = z.object({
   discountType: z.enum(["percentage", "flat"]),
   discountValue: z.coerce.number().positive("discountValue must be a positive number"),
   maxUses: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().optional()),
+  perUserLimit: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().optional()),
   // The frontend sends a plain <input type="date"> value (e.g. "2026-12-31"),
   // not a full ISO datetime — coerce rather than requiring strict ISO 8601.
   expiresAt: z.preprocess(emptyToUndefined, z.coerce.date().optional()),

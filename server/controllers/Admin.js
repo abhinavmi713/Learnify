@@ -188,7 +188,7 @@ exports.getAllUsersAdmin = async (req, res) => {
 
     const [users, total] = await Promise.all([
       User.find(filter)
-        .select("-password -token -resetPasswordToken")
+        .select("-password -resetPasswordToken")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
@@ -219,7 +219,7 @@ exports.setUserActive = async (req, res) => {
       userId,
       { active: !!active },
       { new: true }
-    ).select("-password -token -resetPasswordToken")
+    ).select("-password -resetPasswordToken")
 
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" })

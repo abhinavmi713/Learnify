@@ -16,4 +16,7 @@ const categorySchema = new mongoose.Schema({
 });
 
 // Export the Tags model
+// One category per name, ignoring case ("Web Development" and "web development").
+categorySchema.index({ name: 1 }, { unique: true, collation: { locale: "en", strength: 2 } });
+
 module.exports = mongoose.model("Category", categorySchema);

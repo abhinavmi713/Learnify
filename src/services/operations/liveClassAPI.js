@@ -2,6 +2,7 @@ import { toast } from "react-hot-toast"
 
 import { apiConnector } from "../apiConnector"
 import { liveClassEndpoints } from "../apis"
+import { devLog } from "../../utils/devLog"
 
 const {
   CREATE_LIVE_CLASS_API,
@@ -19,7 +20,7 @@ export async function createLiveClass(data, token) {
     toast.success("Live class scheduled")
     return response.data.data
   } catch (error) {
-    console.log("CREATE_LIVE_CLASS_API ERROR............", error)
+    devLog("CREATE_LIVE_CLASS_API ERROR............", error)
     toast.error(error?.response?.data?.message || "Could not schedule live class")
     return null
   }
@@ -32,7 +33,7 @@ export async function getInstructorLiveClasses(token) {
     })
     return response?.data?.data || []
   } catch (error) {
-    console.log("GET_INSTRUCTOR_LIVE_CLASSES_API ERROR............", error)
+    devLog("GET_INSTRUCTOR_LIVE_CLASSES_API ERROR............", error)
     return []
   }
 }
@@ -44,7 +45,7 @@ export async function getStudentLiveClasses(token) {
     })
     return response?.data?.data || []
   } catch (error) {
-    console.log("GET_STUDENT_LIVE_CLASSES_API ERROR............", error)
+    devLog("GET_STUDENT_LIVE_CLASSES_API ERROR............", error)
     return []
   }
 }
@@ -60,7 +61,7 @@ export async function deleteLiveClass(liveClassId, token) {
     toast.success("Live class cancelled")
     return !!response?.data?.success
   } catch (error) {
-    console.log("DELETE_LIVE_CLASS_API ERROR............", error)
+    devLog("DELETE_LIVE_CLASS_API ERROR............", error)
     toast.error("Could not cancel live class")
     return false
   }

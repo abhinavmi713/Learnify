@@ -11,6 +11,7 @@ import {
   createLearningPath,
   deleteLearningPath,
   getLearningPathsPage,
+  updateLearningPath,
 } from "../../../../services/operations/learningPathAPI"
 
 export default function ManageLearningPaths() {
@@ -27,6 +28,8 @@ export default function ManageLearningPaths() {
   const [form, setForm] = useState({ title: "", description: "" })
   const [selectedCourseIds, setSelectedCourseIds] = useState([])
   const [submitting, setSubmitting] = useState(false)
+  // The path being edited, or null when creating a new one.
+  const [editingId, setEditingId] = useState(null)
   const [page, setPage] = useState(1)
   const [pagination, setPagination] = useState(null)
 
@@ -80,17 +83,32 @@ export default function ManageLearningPaths() {
     })
   }
 
+  const resetForm = () => {
+    setForm({ title: "", description: "" })
+    setSelectedCourseIds([])
+    setEditingId(null)
+  }
+
+  // Loads a path into the form. Its courses come populated with their names, so
+  // the list shows titles rather than ids.
+  const startEdit = (path) => {
+    setEditingId(path._id)
+    setForm({ title: path.title, description: path.description || "" })
+    setSelectedCourseIds(path.courses.map((c) => c._id))
+    setNames((prev) => ({ ...prev, ...Object.fromEntries(path.courses.map((c) => [c._id, c.courseName])) }))
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
   const handleCreate = async (e) => {
     e.preventDefault()
     if (!form.title.trim() || selectedCourseIds.length === 0) return
     setSubmitting(true)
-    const ok = await createLearningPath(
-      { title: form.title.trim(), description: form.description.trim(), courses: selectedCourseIds },
-      token
-    )
+    const data = { title: form.title.trim(), description: form.description.trim(), courses: selectedCourseIds }
+    const ok = editingId
+      ? await updateLearningPath({ pathId: editingId, ...data }, token)
+      : await createLearningPath(data, token)
     if (ok) {
-      setForm({ title: "", description: "" })
-      setSelectedCourseIds([])
+      resetForm()
       load()
     }
     setSubmitting(false)
@@ -197,12 +215,18 @@ export default function ManageLearningPaths() {
           </div>
         )}
 
+        {editingId && (
+          <button type="button" onClick={resetForm} className="text-sm text-richblack-300 hover:text-richblack-5">
+            Cancel editing
+          </button>
+        )}
+
         <button
           type="submit"
           disabled={submitting || !form.title.trim() || selectedCourseIds.length === 0}
           className="yellowButton w-fit"
         >
-          {submitting ? "Creating..." : "Create Learning Path"}
+          {submitting ? "Saving..." : editingId ? "Save changes" : "Create Learning Path"}
         </button>
       </form>
 
@@ -224,9 +248,14 @@ export default function ManageLearningPaths() {
                   {path.description ? ` · ${path.description}` : ""}
                 </p>
               </div>
-              <button onClick={() => handleDelete(path._id)} aria-label="Delete learning path" className="text-richblack-400 hover:text-pink-200">
-                <Trash2 size={18} />
-              </button>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => startEdit(path)} className="text-sm text-yellow-50 hover:underline">
+                  Edit
+                </button>
+                <button onClick={() => handleDelete(path._id)} aria-label="Delete learning path" className="text-richblack-400 hover:text-pink-200">
+                  <Trash2 size={18} />
+                </button>
+              </div>
             </div>
           ))}
         </div>

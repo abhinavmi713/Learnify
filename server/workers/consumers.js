@@ -18,6 +18,8 @@ const consumers = [
       EVENTS.ORDER_PAID,
       EVENTS.COURSE_COMPLETED,
       EVENTS.CONTACT_SUBMITTED,
+      EVENTS.ACCOUNT_EXISTS,
+      EVENTS.SECURITY_SETTINGS_CHANGED,
     ],
     handler: handleEmailEvent,
   },

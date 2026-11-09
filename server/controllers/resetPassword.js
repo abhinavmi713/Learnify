@@ -3,7 +3,7 @@ const { recordAudit } = require("../utils/audit")
 const User = require("../models/User")
 const { enqueueEvent } = require("../events/outbox")
 const { EVENTS } = require("../events/types")
-const bcrypt = require("bcryptjs")
+const { hashPassword } = require("../utils/password")
 const crypto = require("crypto")
 const logger = require("../utils/logger")
 
@@ -105,7 +105,7 @@ exports.resetPassword = async (req, res) => {
       })
     }
 
-    const encryptedPassword = await bcrypt.hash(password, 10)
+    const encryptedPassword = await hashPassword(password)
     // Invalidate the reset token immediately so it cannot be reused
     // (single-use), and bump tokenVersion so any JWT issued before this
     // reset — e.g. from whoever's session prompted the reset — stops working.

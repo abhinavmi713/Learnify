@@ -10,6 +10,8 @@ const Course = require("../models/Course");
 const User = require("../models/User");
 const aiService = require("../utils/aiService");
 const { isCourseParticipant } = require("../utils/access");
+const { validate } = require("../middleware/validate");
+const { chatSchema } = require("../validators/miscValidators");
 
 // Builds a short grounding blurb from the course the student is currently
 // viewing (if any), so answers can reference its actual content instead of
@@ -56,7 +58,7 @@ async function courseForAsker(courseId, userId) {
   return isCourseParticipant(course, { id: userId, accountType: user?.accountType }) ? course : null
 }
 
-router.post("/chat", chatbotLimiter, auth, chatBucket, async (req, res) => {
+router.post("/chat", chatbotLimiter, auth, chatBucket, validate(chatSchema), async (req, res) => {
   const { message, courseId } = req.body;
 
   if (!message || typeof message !== "string" || message.length > 2000) {

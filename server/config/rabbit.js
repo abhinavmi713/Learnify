@@ -31,6 +31,10 @@ let closing = false
 let reconnectTimer = null
 let attempt = 0
 const consumers = new Map() // name -> definition (re-established after a reconnect)
+// Queues this process declares without consuming them (the API declares every
+// worker queue, so events published before a worker first runs aren't dropped).
+const declaredQueues = new Map()
+const returned = new Set() // message ids the broker sent back as unroutable
 
 const isConfigured = () => Boolean(process.env.RABBITMQ_URL)
 const isConnected = () => Boolean(connection && publishChannel)
@@ -78,6 +82,18 @@ async function startConsumer(def) {
   await assertSharedTopology(channel)
   await assertQueueTopology(channel, def)
   await channel.prefetch(def.prefetch || 10)
+
+  // A channel can close on its own while the connection stays up; start the
+  // consumer again, unless the whole connection is going (that path reconnects).
+  const conn = connection
+  channel.on("close", () => {
+    if (closing || def.channel !== channel) return
+    setTimeout(() => {
+      if (!closing && connection === conn && isConnected()) {
+        startConsumer(def).catch((error) => logger.warn({ queue: def.name, err: error.message }, "consumer restart failed"))
+      }
+    }, 1000).unref?.()
+  })
 
   await channel.consume(def.name, async (msg) => {
     if (!msg) return // cancelled by the broker
@@ -157,6 +173,8 @@ async function connectOnce() {
   const channel = await conn.createConfirmChannel()
   channel.on("error", (error) => logger.warn({ err: error.message }, "publish channel error"))
   await assertSharedTopology(channel)
+  for (const def of declaredQueues.values()) await assertQueueTopology(channel, def)
+  channel.on("return", (msg) => returned.add(msg.properties.messageId))
   publishChannel = channel
 
   for (const def of consumers.values()) await startConsumer(def)
@@ -218,6 +236,8 @@ async function publishEvent(event) {
     { kind: "PRODUCER", attributes: { "messaging.system": "rabbitmq", "messaging.destination.name": EVENTS_EXCHANGE, "messaging.message.id": event.id } },
     () =>
       promisePublish(publishChannel, EVENTS_EXCHANGE, event.type, Buffer.from(JSON.stringify(event)), {
+        // Unroutable messages come back instead of being silently dropped.
+        mandatory: true,
         persistent: true,
         contentType: "application/json",
         messageId: event.id,
@@ -226,6 +246,14 @@ async function publishEvent(event) {
         headers: injectHeaders({}),
       })
   )
+  // The broker sends a return before the confirm, so it's known by now.
+  if (returned.delete(event.id)) throw new Error(`no queue is bound for ${event.type}`)
+}
+
+// Declares queues (and their retry/DLQ topology) without consuming them.
+async function declareQueues(defs) {
+  for (const def of defs) declaredQueues.set(def.name, def)
+  if (isConnected()) for (const def of defs) await assertQueueTopology(publishChannel, def)
 }
 
 // def: { name, bindings: [eventType], handler(event), retryDelaysMs?, prefetch? }
@@ -257,6 +285,7 @@ module.exports = {
   start,
   publishEvent,
   registerConsumer,
+  declareQueues,
   close,
   EVENTS_EXCHANGE,
   WORK_EXCHANGE,

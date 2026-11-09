@@ -11,6 +11,8 @@ const ask = withBreaker(
     const res = await withTimeout(
       fetch(`${process.env.AI_SERVICE_URL}/v1/ask`, {
         method: "POST",
+        // Closes the connection on timeout, instead of only giving up waiting.
+        signal: AbortSignal.timeout(20000),
         headers: { "Content-Type": "application/json", "X-Internal-Token": process.env.INTERNAL_API_TOKEN },
         body: JSON.stringify({ courseId, courseName, question }),
       }),

@@ -1,5 +1,9 @@
 const crypto = require("crypto")
-const bcrypt = require("bcryptjs")
+const { verifyPassword } = require("../utils/password")
+const { signAccessToken } = require("../utils/sessions")
+const { enqueueEvent } = require("../events/outbox")
+const { EVENTS } = require("../events/types")
+const { disconnectUser } = require("../realtime")
 const jwt = require("jsonwebtoken")
 const QRCode = require("qrcode")
 const User = require("../models/User")
@@ -17,11 +21,20 @@ const RECOVERY_CODES = 8
 const MAX_FAILED_ATTEMPTS = 5
 const LOCK_DURATION_MS = 15 * 60 * 1000
 
-const hashCode = (code) => crypto.createHash("sha256").update(code.replace(/-/g, "").toLowerCase()).digest("hex")
+// Recovery codes have 80 random bits and are stored as an HMAC keyed with the
+// server's encryption key, so a leaked database alone can't be used to guess
+// them offline. Codes made before this (40 bits, plain SHA-256) still work.
+const normalize = (code) => String(code).replace(/[-\s]/g, "").toLowerCase()
+const hashCode = (code) => crypto.createHmac("sha256", Buffer.from(process.env.ENCRYPTION_KEY || "", "hex")).update(normalize(code)).digest("hex")
+const legacyHashCode = (code) => crypto.createHash("sha256").update(normalize(code)).digest("hex")
 const newRecoveryCode = () => {
-  const raw = crypto.randomBytes(5).toString("hex") // 10 hex chars
-  return `${raw.slice(0, 5)}-${raw.slice(5)}`
+  const raw = crypto.randomBytes(10).toString("hex") // 20 hex chars = 80 bits
+  return raw.match(/.{5}/g).join("-")
 }
+
+// Encrypted 2FA secrets are bound to their owner (AES-GCM additional data).
+const secretContext = (user) => `user:${user._id}`
+const openSecret = (user, sealed) => secretBox.open(sealed, secretContext(user))
 
 // ---------------------------------------------------------------- sessions
 
@@ -61,7 +74,7 @@ exports.revokeSession = async (req, res) => {
 // handed out (tokenVersion bump), e.g. after losing a device.
 exports.logoutAll = async (req, res) => {
   await User.updateOne({ _id: req.user.id }, { $inc: { tokenVersion: 1 } })
-  await revokeAllSessions(req.user.id, "logout_all")
+  await revokeAllSessions(req.user.id, "logout_all") // also disconnects the user's sockets
   await revokeToken(req.user)
   clearRefreshCookie(res)
   await recordAudit(req, { action: "auth.logout_all", targetType: "user", targetId: req.user.id })
@@ -69,6 +82,25 @@ exports.logoutAll = async (req, res) => {
 }
 
 // ---------------------------------------------------------------- two-factor
+
+// The refresh token presenting this request moves to the new tokenVersion, so
+// this device stays signed in after a version bump.
+async function keepCurrentSession(req, user) {
+  const raw = readRefreshCookie(req)
+  if (!raw) return
+  const tokenHash = crypto.createHash("sha256").update(raw).digest("hex")
+  const current = await RefreshToken.findOne({ tokenHash }).select("family")
+  if (current) {
+    await RefreshToken.updateMany({ family: current.family, revokedAt: null }, { $set: { tokenVersion: user.tokenVersion } })
+  }
+}
+
+// In-app notice plus an email: an attacker who changed the setting could
+// dismiss the notice, but not the email.
+async function notifySecurityChange(user, change) {
+  await notifyUser(user._id, `Security: ${change}.`, "/dashboard/settings").catch(() => {})
+  await enqueueEvent(EVENTS.SECURITY_SETTINGS_CHANGED, { email: user.email, firstName: user.firstName, change }).catch(() => {})
+}
 
 const withSecrets = (id) => User.findById(id).select("+twoFactor")
 
@@ -81,7 +113,7 @@ exports.setupTwoFactor = async (req, res) => {
   if (user.twoFactorEnabled) return res.status(400).json({ success: false, message: "Two-factor authentication is already on" })
 
   const secret = totp.generateSecret()
-  user.twoFactor.pendingSecret = secretBox.seal(secret)
+  user.twoFactor.pendingSecret = secretBox.seal(secret, secretContext(user))
   await user.save()
 
   const otpauthUrl = totp.otpauthUrl({ secret, account: user.email })
@@ -95,13 +127,13 @@ exports.setupTwoFactor = async (req, res) => {
 exports.enableTwoFactor = async (req, res) => {
   const user = await withSecrets(req.user.id)
   // A stolen session or unattended browser must not be able to lock out the owner.
-  if (!(await bcrypt.compare(String(req.body.password || ""), user.password))) {
+  if (!(await verifyPassword(String(req.body.password || ""), user.password))) {
     await recordAudit(req, { action: "auth.2fa_enable", outcome: "failure", metadata: { reason: "bad_password" } })
     return res.status(400).json({ success: false, message: "That password is not correct" })
   }
   if (!user.twoFactor?.pendingSecret) return res.status(400).json({ success: false, message: "Start the setup first" })
 
-  const step = totp.verify(secretBox.open(user.twoFactor.pendingSecret), req.body.code)
+  const step = totp.verify(openSecret(user, user.twoFactor.pendingSecret), req.body.code)
   if (step === null) {
     await recordAudit(req, { action: "auth.2fa_enable", outcome: "failure" })
     return res.status(400).json({ success: false, message: "That code is not valid. Check your app and try again." })
@@ -114,12 +146,21 @@ exports.enableTwoFactor = async (req, res) => {
   user.twoFactor.recoveryCodes = recoveryCodes.map(hashCode)
   user.twoFactor.enabledAt = new Date()
   user.twoFactorEnabled = true
+  // Someone turning this on may suspect a compromise, so end every other session
+  // at once: their refresh tokens are revoked, and bumping tokenVersion stops the
+  // access tokens they already hold. This device gets a fresh token.
+  user.tokenVersion = (user.tokenVersion || 0) + 1
   await user.save()
-  // Someone turning this on may suspect a compromise, so end other sessions.
   await revokeOtherSessions(user._id, readRefreshCookie(req), "2fa_enabled")
+  await keepCurrentSession(req, user)
+  disconnectUser(String(user._id))
   await recordAudit(req, { action: "auth.2fa_enable" })
-  await notifyUser(user._id, "Two-factor authentication was turned on. Other devices were signed out.", "/dashboard/settings").catch(() => {})
-  return res.status(200).json({ success: true, message: "Two-factor authentication is on", data: { recoveryCodes } })
+  await notifySecurityChange(user, "two-factor authentication was turned on, and your other devices were signed out")
+  return res.status(200).json({
+    success: true,
+    message: "Two-factor authentication is on",
+    data: { recoveryCodes, token: signAccessToken(user) },
+  })
 }
 
 // Checks a TOTP code or a recovery code. Consumes what it accepts (records the
@@ -127,7 +168,7 @@ exports.enableTwoFactor = async (req, res) => {
 async function consumeSecondFactor(user, code) {
   const given = String(code || "").trim()
   if (/^\d{6}$/.test(given.replace(/\s/g, ""))) {
-    const step = totp.verify(secretBox.open(user.twoFactor.secret), given, { afterStep: user.twoFactor.lastUsedStep || 0 })
+    const step = totp.verify(openSecret(user, user.twoFactor.secret), given, { afterStep: user.twoFactor.lastUsedStep || 0 })
     if (step === null) return null
     // Conditional update: two requests racing with the same code cannot both win.
     const won = await User.updateOne(
@@ -136,8 +177,8 @@ async function consumeSecondFactor(user, code) {
     )
     return won.modifiedCount ? "totp" : null
   }
-  const hashed = hashCode(given)
-  if (!user.twoFactor.recoveryCodes.includes(hashed)) return null
+  const hashed = [hashCode(given), legacyHashCode(given)].find((h) => user.twoFactor.recoveryCodes.includes(h))
+  if (!hashed) return null
   const won = await User.updateOne({ _id: user._id, "twoFactor.recoveryCodes": hashed }, { $pull: { "twoFactor.recoveryCodes": hashed } })
   return won.modifiedCount ? "recovery" : null
 }
@@ -146,7 +187,7 @@ async function consumeSecondFactor(user, code) {
 exports.disableTwoFactor = async (req, res) => {
   const user = await withSecrets(req.user.id)
   if (!user.twoFactorEnabled) return res.status(400).json({ success: false, message: "Two-factor authentication is not on" })
-  const passwordOk = await bcrypt.compare(String(req.body.password || ""), user.password)
+  const passwordOk = await verifyPassword(String(req.body.password || ""), user.password)
   const factor = passwordOk ? await consumeSecondFactor(user, req.body.code) : null
   if (!factor) {
     await recordAudit(req, { action: "auth.2fa_disable", outcome: "failure" })
@@ -157,7 +198,7 @@ exports.disableTwoFactor = async (req, res) => {
     { $set: { twoFactorEnabled: false, twoFactor: { secret: null, pendingSecret: null, lastUsedStep: 0, recoveryCodes: [], enabledAt: null } } }
   )
   await recordAudit(req, { action: "auth.2fa_disable" })
-  await notifyUser(user._id, "Two-factor authentication was turned off.", "/dashboard/settings").catch(() => {})
+  await notifySecurityChange(user, "two-factor authentication was turned off")
   return res.status(200).json({ success: true, message: "Two-factor authentication is off" })
 }
 

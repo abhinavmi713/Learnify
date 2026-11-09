@@ -8,7 +8,21 @@ const logger = require("./logger")
 // the same state. A course that is no longer published (draft, rejected,
 // archived, deleted) simply has its points removed.
 function createIndexer({ fetchCourse, gemini, qdrant }) {
-  async function indexCourse(courseId) {
+  // Jobs for the same course run one after another. Overlapping, an older job
+  // could write chunks back after a newer one removed them (an archived course
+  // staying searchable).
+  const running = new Map()
+  function indexCourse(courseId) {
+    const previous = running.get(courseId) || Promise.resolve()
+    const job = previous.catch(() => {}).then(() => rebuildCourse(courseId))
+    running.set(courseId, job)
+    job.catch(() => {}).finally(() => {
+      if (running.get(courseId) === job) running.delete(courseId)
+    })
+    return job
+  }
+
+  async function rebuildCourse(courseId) {
     const started = Date.now()
     const course = await fetchCourse(courseId)
 

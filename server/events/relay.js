@@ -41,7 +41,8 @@ async function publishOne(doc) {
   try {
     // Publish inside the originating request's trace, so the broker hop and the
     // consumer show up under the same trace id.
-    await withTraceContext(doc.traceContext, () => publish(event))
+    // The last attempt is flagged, so handlers that record failure can do so.
+    await withTraceContext(doc.traceContext, () => publish(event, { finalAttempt: doc.attempts >= MAX_ATTEMPTS }))
     const update = { status: "sent", sentAt: new Date(), lockedAt: null, lastError: null }
     // A delivered OTP or reset link has no reason to stay in the database.
     if (doc.sensitive) update.payload = { redacted: true }
@@ -67,13 +68,25 @@ async function publishOne(doc) {
   }
 }
 
-// Publishes everything currently due. Returns how many rows were delivered.
-async function drain({ max = 200 } = {}) {
+// Publishes everything currently due, up to CONCURRENCY at a time, so one slow
+// event (without RabbitMQ, a webhook to a hanging server is handled right here)
+// can't hold up the others. Returns how many rows were delivered.
+const CONCURRENCY = 10
+async function drain({ max = 200, concurrency = CONCURRENCY } = {}) {
   let delivered = 0
-  for (let i = 0; i < max; i++) {
-    const doc = await claimNext()
-    if (!doc) break
-    if (await publishOne(doc)) delivered++
+  let claimed = 0
+  for (;;) {
+    const batch = []
+    while (batch.length < concurrency && claimed < max) {
+      const doc = await claimNext()
+      if (!doc) break
+      batch.push(doc)
+      claimed++
+    }
+    if (!batch.length) break
+    const results = await Promise.all(batch.map(publishOne))
+    delivered += results.filter(Boolean).length
+    if (claimed >= max) break
   }
   return delivered
 }

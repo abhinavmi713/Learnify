@@ -14,6 +14,8 @@ const EVENTS = {
   WEBHOOK_DELIVERY_REQUESTED: "webhook.delivery_requested",
   CONTACT_SUBMITTED: "contact.submitted",
   PAYMENT_REFUND_REQUESTED: "payment.refund_requested",
+  ACCOUNT_EXISTS: "account.exists_signup_attempt",
+  SECURITY_SETTINGS_CHANGED: "account.security_changed",
 }
 
 // Events whose payload contains a secret (an OTP, a reset link). The outbox wipes

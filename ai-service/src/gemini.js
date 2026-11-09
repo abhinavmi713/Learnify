@@ -1,13 +1,14 @@
 // Thin Gemini client: embeddings (batched) and text generation.
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
-async function postJson(url, body, timeoutMs) {
+async function postJson(url, body, timeoutMs, apiKey) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // The key goes in a header, not the URL, where proxies often log it.
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify(body),
       signal: controller.signal,
     })
@@ -32,7 +33,7 @@ function createGemini({ apiKey, embedModel, embedDim, genModel }) {
     for (let i = 0; i < texts.length; i += 100) {
       const batch = texts.slice(i, i + 100)
       const data = await postJson(
-        `${BASE}/${embedModel}:batchEmbedContents?key=${apiKey}`,
+        `${BASE}/${embedModel}:batchEmbedContents`,
         {
           requests: batch.map((text) => ({
             model: `models/${embedModel}`,
@@ -41,7 +42,8 @@ function createGemini({ apiKey, embedModel, embedDim, genModel }) {
             outputDimensionality: embedDim,
           })),
         },
-        30000
+        30000,
+        apiKey
       )
       out.push(...data.embeddings.map((e) => e.values))
     }
@@ -50,12 +52,13 @@ function createGemini({ apiKey, embedModel, embedDim, genModel }) {
 
   async function generate(prompt, { temperature = 0.2, maxOutputTokens = 800 } = {}) {
     const data = await postJson(
-      `${BASE}/${genModel}:generateContent?key=${apiKey}`,
+      `${BASE}/${genModel}:generateContent`,
       {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { temperature, maxOutputTokens },
       },
-      30000
+      30000,
+      apiKey
     )
     const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("")
     if (!text) throw new Error("Gemini returned no text")

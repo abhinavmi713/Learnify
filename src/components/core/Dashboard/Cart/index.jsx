@@ -7,10 +7,13 @@ import EmptyState from "../../../Common/EmptyState"
 import RenderCartCourses from "./RenderCartCourses"
 import RenderTotalAmount from "./RenderTotalAmount"
 import { getUserEnrolledCourses } from "../../../../services/operations/profileAPI"
-import { removeCourses } from "../../../../slices/cartSlice"
+import { removeCourses, updateCartPrices } from "../../../../slices/cartSlice"
+import { apiConnector } from "../../../../services/apiConnector"
+import { courseEndpoints } from "../../../../services/apis"
+import { toast } from "react-hot-toast"
 
 export default function Cart() {
-  const { totalItems } = useSelector((state) => state.cart)
+  const { totalItems, cart } = useSelector((state) => state.cart)
   const { paymentLoading } = useSelector((state) => state.course)
   const { token } = useSelector((state) => state.auth)
   const dispatch = useDispatch()
@@ -23,6 +26,38 @@ export default function Cart() {
       .then((enrolled) => dispatch(removeCourses((enrolled || []).map((c) => c._id))))
       .catch(() => {})
   }, [token, dispatch])
+
+  // The cart keeps copies of courses, so check each one: a price may have changed,
+  // or a course may have been unpublished since it was added.
+  const cartIds = cart.map((c) => c._id).join(",")
+  useEffect(() => {
+    if (!cartIds) return
+    let cancelled = false
+    ;(async () => {
+      const prices = {}
+      const gone = []
+      await Promise.all(
+        cartIds.split(",").map(async (courseId) => {
+          try {
+            const res = await apiConnector("POST", courseEndpoints.COURSE_DETAILS_API, { courseId })
+            const course = res?.data?.data?.courseDetails
+            if (course) prices[courseId] = course.price
+          } catch (error) {
+            if (error?.response?.status === 400 || error?.response?.status === 404) gone.push(courseId)
+          }
+        })
+      )
+      if (cancelled) return
+      dispatch(updateCartPrices(prices))
+      if (gone.length) {
+        dispatch(removeCourses(gone))
+        toast(`${gone.length === 1 ? "A course is" : `${gone.length} courses are`} no longer available and ${gone.length === 1 ? "was" : "were"} removed from your cart.`)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [cartIds, dispatch])
 
   if (paymentLoading)
     return (

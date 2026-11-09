@@ -25,6 +25,9 @@ const OTPSchema = new mongoose.Schema({
 // "otp.requested" outbox event in the same transaction as this document, and a
 // worker sends the mail with retries (see events/ and workers/).
 
+// Codes are always looked up by email, newest first.
+OTPSchema.index({ email: 1, createdAt: -1 });
+
 const OTP = mongoose.model("OTP", OTPSchema);
 
 module.exports = OTP;

@@ -7,6 +7,7 @@ const express = require("express");
 // Express 4 ignores a rejected async handler, leaving the request hanging. This
 // sends those rejections to errorHandler. Must load before any routes are made.
 require("express-async-errors");
+require("./config/mongoose");
 const app = express();
 
 const mongoose = require("mongoose");
@@ -130,10 +131,19 @@ registerCheck(
 // API documentation, generated from the routes themselves (openapi/generate.js).
 // Built on first request so every router is mounted by then.
 let openapiSpec = null;
-const getSpec = () => (openapiSpec ||= buildSpec(app, { version: require("./package.json").version }));
-app.get("/api/openapi.json", (req, res) => res.json(getSpec()));
+// Service-to-service routes are left out of the published spec.
+const publicSpec = (spec) => ({
+  ...spec,
+  paths: Object.fromEntries(Object.entries(spec.paths || {}).filter(([path]) => !path.startsWith("/api/v1/internal"))),
+});
+const getSpec = () => (openapiSpec ||= publicSpec(buildSpec(app, { version: require("./package.json").version })));
+// Public in development; in production only when DOCS_PUBLIC=1.
+const docsEnabled = (req, res, next) =>
+  process.env.NODE_ENV !== "production" || process.env.DOCS_PUBLIC === "1" ? next() : notFoundHandler(req, res);
+app.get("/api/openapi.json", docsEnabled, (req, res) => res.json(getSpec()));
 app.use(
   "/api/docs",
+  docsEnabled,
   // Swagger UI needs inline scripts/styles; relax CSP for this page only.
   (req, res, next) => {
     res.setHeader("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'");

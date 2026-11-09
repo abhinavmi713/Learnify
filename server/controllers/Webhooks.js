@@ -6,7 +6,7 @@ const { enqueueEvent } = require("../events/outbox")
 const { EVENTS } = require("../events/types")
 const { runInTransaction } = require("../utils/transaction")
 const { recordAudit } = require("../utils/audit")
-const { WEBHOOK_EVENTS, newSecret, assertDeliverableUrl, WebhookUrlError } = require("../utils/webhooks")
+const { WEBHOOK_EVENTS, newSecret, assertDeliverableUrl, WebhookUrlError, webhookSecretContext } = require("../utils/webhooks")
 
 const MAX_WEBHOOKS = 10
 
@@ -73,7 +73,7 @@ exports.createWebhook = async (req, res) => {
     return res.status(400).json({ success: false, message: `You can have at most ${MAX_WEBHOOKS} webhooks` })
   }
   const secret = newSecret()
-  const hook = await Webhook.create({ owner: req.user.id, url, events, description, secret: secretBox.seal(secret) })
+  const hook = await Webhook.create({ owner: req.user.id, url, events, description, secret: secretBox.seal(secret, webhookSecretContext(req.user.id)) })
   await recordAudit(req, { action: "webhook.create", targetType: "webhook", targetId: hook._id, metadata: { url, events } })
   return res.status(201).json({ success: true, data: { ...view(hook), secret } })
 }
@@ -105,7 +105,7 @@ exports.rotateSecret = async (req, res) => {
   const hook = await ownHook(req, res)
   if (!hook) return
   const secret = newSecret()
-  hook.secret = secretBox.seal(secret)
+  hook.secret = secretBox.seal(secret, webhookSecretContext(hook.owner))
   await hook.save()
   await recordAudit(req, { action: "webhook.rotate_secret", targetType: "webhook", targetId: hook._id })
   return res.status(200).json({ success: true, data: { secret } })

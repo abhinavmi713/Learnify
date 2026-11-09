@@ -23,7 +23,29 @@ const send = withBreaker("smtp", (to, subject, html) => mailSender(to, subject, 
 const mailConfigured = () => Boolean(process.env.MAIL_HOST && process.env.MAIL_USER && process.env.MAIL_PASS)
 const skipMail = () => process.env.NODE_ENV === "development" && !mailConfigured()
 
+const simplePage = (title, lines) =>
+  `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px"><h2>${title}</h2>${lines.map((l) => `<p>${l}</p>`).join("")}</div>`
+
 const templates = {
+  [EVENTS.ACCOUNT_EXISTS]: async ({ email, firstName }) => [
+    email,
+    "You already have a Learnify account",
+    simplePage("You already have an account", [
+      `Hi ${firstName || "there"}, someone tried to sign up with this email address, but it already has a Learnify account.`,
+      "If that was you, sign in instead, or reset your password if you've forgotten it.",
+      "If it wasn't you, you can ignore this email. Your account hasn't changed.",
+    ]),
+  ],
+
+  [EVENTS.SECURITY_SETTINGS_CHANGED]: async ({ email, firstName, change }) => [
+    email,
+    "A security setting on your Learnify account changed",
+    simplePage("Your account's security settings changed", [
+      `Hi ${firstName || "there"}, ${change}.`,
+      "If this wasn't you, reset your password straight away and contact support.",
+    ]),
+  ],
+
   [EVENTS.OTP_REQUESTED]: async ({ email, otp }) => [email, "Verification Email", emailVerificationTemplate(otp)],
 
   [EVENTS.PASSWORD_RESET_REQUESTED]: async ({ email, url }) => [email, "Password Reset", passwordResetEmail(url)],

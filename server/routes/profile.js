@@ -3,6 +3,7 @@ const { uploadImage } = require("../middleware/upload")
 const router = express.Router()
 const { auth, isInstructor } = require("../middleware/auth")
 const { validate } = require("../middleware/validate")
+const { audited } = require("../utils/audit")
 const { updateProfileSchema, courseIdSchema } = require("../validators/miscValidators")
 const {
   deleteAccount,
@@ -23,7 +24,7 @@ const {
 //                                      Profile routes
 // ********************************************************************************************************
 // Delet User Account
-router.delete("/deleteProfile", auth, deleteAccount)
+router.delete("/deleteProfile", auth, audited("account.delete", (req) => ({ targetType: "user", targetId: req.user?.id })), deleteAccount)
 router.put("/updateProfile", auth, validate(updateProfileSchema), updateProfile)
 router.get("/getUserDetails", auth, getAllUserDetails)
 // Get Enrolled Courses

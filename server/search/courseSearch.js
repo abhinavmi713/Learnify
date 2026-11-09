@@ -12,6 +12,8 @@ const { alias } = require("./courseIndex")
 // Facets are computed from the query alone and the filters are applied as a
 // post_filter, so the category/price counts show what each choice WOULD give
 // instead of collapsing to the currently selected option.
+const MAX_RESULT_WINDOW = 10000
+
 const TEXT_FIELDS = [
   "courseName^5",
   "tags^3",
@@ -89,8 +91,9 @@ function toCourse(hit) {
 
 async function runSearch(params) {
   const q = typeof params.search === "string" ? params.search.trim().slice(0, 200) : ""
-  const page = Math.max(1, parseInt(params.page, 10) || 1)
   const limit = Math.min(50, Math.max(1, parseInt(params.limit, 10) || 12))
+  // Elasticsearch refuses from + size beyond 10,000 (index.max_result_window).
+  const page = Math.min(Math.floor(MAX_RESULT_WINDOW / limit), Math.max(1, parseInt(params.page, 10) || 1))
   const sortBy = SORTS[params.sortBy] ? params.sortBy : q ? "relevance" : "newest"
   const filters = filtersFor(params)
 
@@ -201,7 +204,10 @@ async function runSuggest(prefix) {
 
 // Behind a circuit breaker: when Elasticsearch is down, callers fail fast and
 // use the MongoDB search instead.
-const search = withBreaker("elasticsearch-search", runSearch, { timeout: 4000, volumeThreshold: 5, resetTimeout: 15000 })
-const suggest = withBreaker("elasticsearch-suggest", runSuggest, { timeout: 2000, volumeThreshold: 5, resetTimeout: 15000 })
+// A 4xx means the request was bad, not that Elasticsearch is unhealthy, so it
+// mustn't count towards opening the breaker for everyone.
+const clientError = (error) => error?.status >= 400 && error?.status < 500
+const search = withBreaker("elasticsearch-search", runSearch, { timeout: 4000, volumeThreshold: 5, resetTimeout: 15000, errorFilter: clientError })
+const suggest = withBreaker("elasticsearch-suggest", runSuggest, { timeout: 2000, volumeThreshold: 5, resetTimeout: 15000, errorFilter: clientError })
 
 module.exports = { search, suggest, textQuery, filtersFor, toCourse, SORTS }

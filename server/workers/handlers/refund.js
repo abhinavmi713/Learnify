@@ -6,6 +6,7 @@ const { getInstance } = require("../../config/razorpay")
 const { withBreaker, withTimeout } = require("../../utils/resilience")
 const { notifyUser } = require("../../utils/notify")
 const { refundEmail } = require("../../mail/templates/simpleEmails")
+const { recordAudit } = require("../../utils/audit")
 
 // Razorpay can take a while or be down; a breaker stops hammering it.
 const callRefund = withBreaker(
@@ -26,9 +27,34 @@ async function partialRefundExists(paymentId, orderId) {
   return (response?.items || []).some((refund) => refund.notes?.orderId === orderId)
 }
 
+// A claim older than this belongs to a worker that died; it can be taken over.
+const STALE_CLAIM_MS = 10 * 60 * 1000
+
+class RefundInProgress extends Error {}
+
+// Two copies of a refund event can arrive at the same time. Only the one that
+// moves the record from "waiting" to "processing" may call Razorpay; the other
+// throws so the queue checks again later (by then it's done, or the claim is stale).
+async function claim(filterWaiting, field, status) {
+  const stale = new Date(Date.now() - STALE_CLAIM_MS)
+  return PaymentRecord.findOneAndUpdate(
+    { $or: [filterWaiting, { [status.field]: status.processing, [field]: { $lt: stale } }], ...status.extra },
+    { $set: { [status.field]: status.processing, [field]: new Date() } },
+    { new: true }
+  )
+}
+
 async function handlePartialRefund({ orderId, paymentId, amount, reason }) {
-  const record = await PaymentRecord.findOne({ orderId })
-  if (record?.partialRefund?.status === "refunded") return
+  const record = await claim(
+    { orderId, "partialRefund.status": { $in: ["pending", "failed"] } },
+    "partialRefund.claimedAt",
+    { field: "partialRefund.status", processing: "processing", extra: { orderId } }
+  )
+  if (!record) {
+    const current = await PaymentRecord.findOne({ orderId }).lean()
+    if (!current || current.partialRefund?.status === "refunded") return
+    throw new RefundInProgress(`partial refund for ${orderId} is being processed`)
+  }
 
   try {
     if (!(await partialRefundExists(paymentId, orderId))) {
@@ -44,6 +70,7 @@ async function handlePartialRefund({ orderId, paymentId, amount, reason }) {
     { $set: { "partialRefund.status": "refunded", "partialRefund.refundedAt": new Date() } }
   )
   logger.info({ orderId, paymentId, amount }, "partial refund made")
+  await recordAudit(null, { action: "payment.partially_refunded", targetType: "payment", targetId: orderId, metadata: { amount, reason } })
 
   const user = record && (await User.findById(record.user))
   if (user) {
@@ -61,8 +88,16 @@ async function handleRefund(event) {
   if (event.payload.partial) return handlePartialRefund(event.payload)
 
   const { orderId, paymentId, amount, reason } = event.payload
-  const record = await PaymentRecord.findOne({ orderId })
-  if (record?.status === "refunded") return
+  const record = await claim(
+    { orderId, status: { $in: ["refund_pending", "refund_failed"] } },
+    "refundClaimedAt",
+    { field: "status", processing: "refund_processing", extra: { orderId } }
+  )
+  if (!record) {
+    const current = await PaymentRecord.findOne({ orderId }).lean()
+    if (!current || current.status === "refunded") return
+    throw new RefundInProgress(`refund for ${orderId} is being processed`)
+  }
 
   try {
     await callRefund(paymentId, Math.round(amount * 100), { orderId, reason: String(reason || "").slice(0, 200) })
@@ -75,6 +110,7 @@ async function handleRefund(event) {
 
   await PaymentRecord.updateOne({ orderId }, { $set: { status: "refunded", refundedAt: new Date() } })
   logger.info({ orderId, paymentId }, "payment refunded")
+  await recordAudit(null, { action: "payment.refunded", targetType: "payment", targetId: orderId, metadata: { amount, reason } })
 
   const user = record && (await User.findById(record.user))
   if (user) {

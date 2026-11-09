@@ -16,7 +16,8 @@ const paymentRecordSchema = new mongoose.Schema(
     undeliveredCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: "Course" }],
     partialRefund: {
       amount: { type: Number, default: 0 },
-      status: { type: String, enum: ["none", "pending", "refunded", "failed"], default: "none" },
+      status: { type: String, enum: ["none", "pending", "processing", "refunded", "failed"], default: "none" },
+      claimedAt: { type: Date, default: null },
       refundedAt: { type: Date, default: null },
     },
     couponCode: { type: String, default: null },
@@ -27,11 +28,16 @@ const paymentRecordSchema = new mongoose.Schema(
     // refund_failed  refund attempt failed (will retry, then needs a human)
     status: {
       type: String,
-      enum: ["fulfilled", "refund_pending", "refunded", "refund_failed"],
+      enum: ["fulfilled", "refund_pending", "refund_processing", "refunded", "refund_failed"],
       default: "fulfilled",
     },
     failureReason: { type: String, default: null },
     refundedAt: { type: Date, default: null },
+    // When a refund worker took this refund; a stale claim can be taken over.
+    refundClaimedAt: { type: Date, default: null },
+    // Set when the payment was refunded or disputed outside Learnify.
+    externalRefundId: { type: String, default: null },
+    disputedAt: { type: Date, default: null },
   },
   { timestamps: true }
 )

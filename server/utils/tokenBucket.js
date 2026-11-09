@@ -34,12 +34,23 @@ redis.call('PEXPIRE', KEYS[1], math.ceil((capacity / rate) * 1000) + 1000)
 return {allowed, math.floor(tokens), retryMs}
 `
 
-const buckets = new Map() // in-process fallback: key -> { tokens, ts }
+const buckets = new Map() // in-process fallback: key -> { tokens, ts, capacity, rate }
+
+// A bucket that has refilled completely is the same as no bucket, so it can go.
+const sweep = setInterval(() => {
+  const now = Date.now()
+  for (const [key, b] of buckets) {
+    if (b.tokens + ((now - b.ts) / 1000) * b.rate >= b.capacity) buckets.delete(key)
+  }
+}, 60 * 1000)
+sweep.unref?.()
 
 function takeLocal(key, capacity, refillPerSec, cost) {
   const now = Date.now()
   const bucket = buckets.get(key) || { tokens: capacity, ts: now }
-  bucket.tokens = Math.min(capacity, bucket.tokens + ((now - bucket.ts) / 1000) * refillPerSec)
+  bucket.capacity = capacity
+  bucket.rate = refillPerSec
+  bucket.tokens = Math.min(capacity, bucket.tokens + (Math.max(0, now - bucket.ts) / 1000) * refillPerSec)
   bucket.ts = now
   let allowed = false
   let retryMs = 0
@@ -89,4 +100,13 @@ function resetLocalBuckets() {
   buckets.clear()
 }
 
-module.exports = { take, tokenBucketLimiter, resetLocalBuckets }
+// For tests: run the sweep now.
+function sweepLocalBuckets() {
+  const now = Date.now()
+  for (const [key, b] of buckets) {
+    if (b.tokens + ((now - b.ts) / 1000) * b.rate >= b.capacity) buckets.delete(key)
+  }
+  return buckets.size
+}
+
+module.exports = { take, tokenBucketLimiter, resetLocalBuckets, sweepLocalBuckets }

@@ -1,4 +1,4 @@
-const bcrypt = require("bcryptjs")
+const { hashPassword, verifyPassword, needsRehash } = require("../utils/password")
 const User = require("../models/User")
 const OTP = require("../models/OTP")
 const { hashOtp, otpMatches } = require("../utils/otp")
@@ -65,15 +65,6 @@ exports.signup = async (req, res) => {
       })
     }
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email })
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: "User already exists. Please sign in to continue.",
-      })
-    }
-
     // Find the most recent OTP for the email
     const latest = await OTP.findOne({ email }).sort({ createdAt: -1 })
     if (!latest) {
@@ -94,15 +85,13 @@ exports.signup = async (req, res) => {
       return res.status(400).json({ success: false, message: "The OTP is not valid" })
     }
 
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10)
+    // Checked only after the code is accepted: the code only reaches the address's
+    // owner, so this doesn't tell strangers which emails have accounts.
+    if (await User.exists({ email })) {
+      return res.status(400).json({ success: false, message: "User already exists. Please sign in to continue." })
+    }
 
-    // Instructors are intentionally NOT gated behind a separate approval
-    // step: the real quality gate is course moderation (an instructor can
-    // never publish — an admin must approve each course). The old code here
-    // tried to flag instructors as unapproved but compared an empty string
-    // to "Instructor", so it always evaluated to `true`.
-    const approved = true
+    const hashedPassword = await hashPassword(password)
 
     // Create the Additional Profile For User
     // Profile, user and the "user.registered" event commit together, so a new
@@ -122,8 +111,7 @@ exports.signup = async (req, res) => {
             email,
             contactNumber,
             password: hashedPassword,
-            accountType: accountType,
-            approved: approved,
+            accountType: accountType,
             additionalDetails: profileDetails._id,
             image: "",
           },
@@ -155,7 +143,8 @@ exports.signup = async (req, res) => {
 }
 
 // Compared when an email is unknown, so that login takes the same time either way.
-const DUMMY_PASSWORD_HASH = bcrypt.hashSync(crypto.randomBytes(16).toString("hex"), 10)
+let dummyHash = null
+const dummyPasswordHash = async () => (dummyHash ||= await hashPassword(crypto.randomBytes(16).toString("hex")))
 
 // Lockout policy for repeated failed login attempts on a single account.
 const MAX_FAILED_ATTEMPTS = 5
@@ -187,11 +176,13 @@ async function completeLogin(req, res, user) {
   const safeUser = user.toObject ? user.toObject() : { ...user }
   delete safeUser.password
   delete safeUser.twoFactor
-  delete safeUser.token
   await recordAudit(req, { action: "auth.login", actor: user, metadata: { twoFactor: Boolean(user.twoFactorEnabled) } })
   return res.status(200).json({ success: true, token, user: safeUser, message: `User Login Success` })
 }
 exports.completeLogin = completeLogin
+
+// Keeps an audit entry from storing a password typed into the email field.
+const auditEmail = (value) => (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "")) ? String(value).toLowerCase() : "[not an email]")
 
 // The same answer either way, so login doesn't reveal which emails have accounts.
 const BAD_CREDENTIALS = "Incorrect email or password"
@@ -215,30 +206,38 @@ exports.login = async (req, res) => {
 
     // If user not found with provided email
     if (!user) {
-      await bcrypt.compare(String(password), DUMMY_PASSWORD_HASH)
-      await recordAudit(req, { action: "auth.login", outcome: "failure", metadata: { email, reason: "unknown_email" } })
+      await verifyPassword(String(password), await dummyPasswordHash())
+      // Whatever was typed is only stored if it looks like an email: people
+      // sometimes type their password into the email field.
+      await recordAudit(req, { action: "auth.login", outcome: "failure", metadata: { email: auditEmail(email), reason: "unknown_email" } })
       return res.status(401).json({ success: false, message: BAD_CREDENTIALS })
     }
 
-    // Reject if an admin has deactivated this account
-    if (user.active === false) {
-      return res.status(403).json({
-        success: false,
-        message: `Your account has been deactivated. Please contact support.`,
-      })
-    }
-
-    // Reject if the account is currently locked out from too many failures
-    if (user.lockUntil && user.lockUntil > Date.now()) {
+    // The password is checked before anything account-specific is said, so
+    // "deactivated" and "locked" only ever reach someone who knows the password.
+    // Anyone else gets the same answer as for an email with no account.
+    const passwordOk = await verifyPassword(password, user.password)
+    const locked = user.lockUntil && user.lockUntil > Date.now()
+    if (locked) {
+      if (!passwordOk) return res.status(401).json({ success: false, message: BAD_CREDENTIALS })
       const minutesLeft = Math.ceil((user.lockUntil - Date.now()) / 60000)
       return res.status(423).json({
         success: false,
         message: `Too many failed login attempts. Please try again in ${minutesLeft} minute(s).`,
       })
     }
+    if (passwordOk && user.active === false) {
+      return res.status(403).json({
+        success: false,
+        message: `Your account has been deactivated. Please contact support.`,
+      })
+    }
 
-    // Generate JWT token and Compare Password
-    if (await bcrypt.compare(password, user.password)) {
+    if (passwordOk) {
+      // Older bcrypt hashes are upgraded the first time the password is seen.
+      if (needsRehash(user.password)) {
+        await User.updateOne({ _id: user._id }, { $set: { password: await hashPassword(password) } })
+      }
       // Successful login: clear any prior failed-attempt tracking
       if (user.failedLoginAttempts || user.lockUntil) {
         await User.findByIdAndUpdate(user._id, {
@@ -296,13 +295,12 @@ exports.sendotp = async (req, res) => {
     const checkUserPresent = await User.findOne({ email })
     // to be used in case of signup
 
-    // If user found with provided email
+    // Same answer whether or not the email has an account, so this can't be used
+    // to find out who is registered. The owner of an existing account gets an
+    // email saying so, instead of a code.
     if (checkUserPresent) {
-      // Return 401 Unauthorized status code with error message
-      return res.status(401).json({
-        success: false,
-        message: `User is Already Registered`,
-      })
+      await enqueueEvent(EVENTS.ACCOUNT_EXISTS, { email, firstName: checkUserPresent.firstName })
+      return res.status(200).json({ success: true, message: `OTP Sent Successfully` })
     }
 
     // OTPs are only ever looked up per-email, so they don't need to be
@@ -344,10 +342,7 @@ exports.changePassword = async (req, res) => {
     const { oldPassword, newPassword } = req.body
 
     // Validate old password
-    const isPasswordMatch = await bcrypt.compare(
-      oldPassword,
-      userDetails.password
-    )
+    const isPasswordMatch = await verifyPassword(oldPassword, userDetails.password)
     if (!isPasswordMatch) {
       // If old password does not match, return a 401 (Unauthorized) error
       return res
@@ -359,7 +354,7 @@ exports.changePassword = async (req, res) => {
     // before this change (including the one used for this very request) —
     // the frontend logs the user out right after a successful change so this
     // isn't a surprise on their next click.
-    const encryptedPassword = await bcrypt.hash(newPassword, 10)
+    const encryptedPassword = await hashPassword(newPassword)
     // The change and the notification event commit together; a worker sends the
     // "password updated" email, so a slow or failing mail server can never be
     // reported to the client as a failed password change.

@@ -2,6 +2,7 @@ import { toast } from "react-hot-toast"
 
 import { apiConnector } from "../apiConnector"
 import { courseEndpoints } from "../apis"
+import { devLog } from "../../utils/devLog"
 
 const { SEARCH_COURSES_API, SUGGEST_COURSES_API } = courseEndpoints
 
@@ -29,7 +30,7 @@ export const searchCourses = async (filters = {}, { silent = false } = {}) => {
     }
     result = response.data
   } catch (error) {
-    console.log("SEARCH_COURSES_API ERROR............", error)
+    devLog("SEARCH_COURSES_API ERROR............", error)
     if (!silent) toast.error("Could not fetch search results")
   }
   if (toastId) toast.dismiss(toastId)

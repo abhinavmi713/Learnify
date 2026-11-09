@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { lazy, Suspense, useEffect, useState } from "react"
 import "./App.css"
 // Redux
 import { useDispatch, useSelector } from "react-redux"
@@ -9,56 +9,60 @@ import { Route, Routes, useLocation, useNavigate } from "react-router-dom"
 import Navbar from "./components/Common/Navbar"
 import OpenRoute from "./components/core/Auth/OpenRoute"
 import PrivateRoute from "./components/core/Auth/PrivateRoute"
-import AddCourse from "./components/core/Dashboard/AddCourse"
-import Cart from "./components/core/Dashboard/Cart"
-import EditCourse from "./components/core/Dashboard/EditCourse"
-import EnrolledCourses from "./components/core/Dashboard/EnrolledCourses"
-import Instructor from "./components/core/Dashboard/Instructor"
-import MyCourses from "./components/core/Dashboard/MyCourses"
-import Webhooks from "./components/core/Dashboard/Webhooks"
-import MyProfile from "./components/core/Dashboard/MyProfile"
-import LiveClass from "./components/core/Dashboard/LiveClass"
-import Settings from "./components/core/Dashboard/Settings"
-import Wishlist from "./components/core/Dashboard/Wishlist"
-import Certificates from "./components/core/Dashboard/Certificates"
-import Achievements from "./components/core/Dashboard/Achievements"
-import StudentLiveClasses from "./components/core/Dashboard/StudentLiveClasses"
-import ManageQuizzes from "./components/core/Dashboard/ManageQuizzes"
-import ManageCoupons from "./components/core/Dashboard/Admin/ManageCoupons"
-import AuditLog from "./components/core/Dashboard/Admin/AuditLog"
-import ModerateCourses from "./components/core/Dashboard/Admin/ModerateCourses"
-import ManageUsers from "./components/core/Dashboard/Admin/ManageUsers"
-import ManageCategories from "./components/core/Dashboard/Admin/ManageCategories"
-import ManageLearningPaths from "./components/core/Dashboard/Admin/ManageLearningPaths"
-import PlatformAnalytics from "./components/core/Dashboard/Admin/PlatformAnalytics"
-import VideoDetails from "./components/core/ViewCourse/VideoDetails"
-import CourseQuizzes from "./components/core/ViewCourse/CourseQuizzes"
-import TakeQuiz from "./components/core/ViewCourse/TakeQuiz"
-import About from "./pages/About"
-import Catalog from "./pages/Catalog"
-import Contact from "./pages/Contact"
-import CourseDetails from "./pages/CourseDetails"
-import Dashboard from "./pages/Dashboard"
-import Error from "./pages/Error"
-import ForgotPassword from "./pages/ForgotPassword"
-import SearchResults from "./pages/SearchResults"
-import VerifyCertificate from "./pages/VerifyCertificate"
-import LearningPaths from "./pages/LearningPaths"
-import LearningPathDetails from "./pages/LearningPathDetails"
-import LegalPage from "./pages/LegalPage"
-import ErrorBoundary from "./components/Common/ErrorBoundary"
 import ChatBot from "./components/Common/ChatBot"
 // Pages
 import Home from "./pages/Home"
-import Login from "./pages/Login"
-import Signup from "./pages/Signup"
-import UpdatePassword from "./pages/UpdatePassword"
-import VerifyEmail from "./pages/VerifyEmail"
-import ViewCourse from "./pages/ViewCourse"
-import { getUserDetails } from "./services/operations/profileAPI"
 import { loadWishlistIds } from "./services/operations/wishlistAPI"
 import { ACCOUNT_TYPE } from "./utils/constants"
 import { titleFor } from "./utils/pageTitle"
+
+import ErrorBoundary from "./components/Common/ErrorBoundary"
+import { getUserDetails } from "./services/operations/profileAPI"
+
+// Pages load on demand (code splitting).
+const AddCourse = lazy(() => import("./components/core/Dashboard/AddCourse"))
+const Cart = lazy(() => import("./components/core/Dashboard/Cart"))
+const EditCourse = lazy(() => import("./components/core/Dashboard/EditCourse"))
+const EnrolledCourses = lazy(() => import("./components/core/Dashboard/EnrolledCourses"))
+const Instructor = lazy(() => import("./components/core/Dashboard/Instructor"))
+const MyCourses = lazy(() => import("./components/core/Dashboard/MyCourses"))
+const Webhooks = lazy(() => import("./components/core/Dashboard/Webhooks"))
+const MyProfile = lazy(() => import("./components/core/Dashboard/MyProfile"))
+const LiveClass = lazy(() => import("./components/core/Dashboard/LiveClass"))
+const Settings = lazy(() => import("./components/core/Dashboard/Settings"))
+const Wishlist = lazy(() => import("./components/core/Dashboard/Wishlist"))
+const Certificates = lazy(() => import("./components/core/Dashboard/Certificates"))
+const Achievements = lazy(() => import("./components/core/Dashboard/Achievements"))
+const StudentLiveClasses = lazy(() => import("./components/core/Dashboard/StudentLiveClasses"))
+const ManageQuizzes = lazy(() => import("./components/core/Dashboard/ManageQuizzes"))
+const ManageCoupons = lazy(() => import("./components/core/Dashboard/Admin/ManageCoupons"))
+const AuditLog = lazy(() => import("./components/core/Dashboard/Admin/AuditLog"))
+const ModerateCourses = lazy(() => import("./components/core/Dashboard/Admin/ModerateCourses"))
+const ManageUsers = lazy(() => import("./components/core/Dashboard/Admin/ManageUsers"))
+const ManageCategories = lazy(() => import("./components/core/Dashboard/Admin/ManageCategories"))
+const ManageLearningPaths = lazy(() => import("./components/core/Dashboard/Admin/ManageLearningPaths"))
+const PlatformAnalytics = lazy(() => import("./components/core/Dashboard/Admin/PlatformAnalytics"))
+const VideoDetails = lazy(() => import("./components/core/ViewCourse/VideoDetails"))
+const CourseQuizzes = lazy(() => import("./components/core/ViewCourse/CourseQuizzes"))
+const TakeQuiz = lazy(() => import("./components/core/ViewCourse/TakeQuiz"))
+const About = lazy(() => import("./pages/About"))
+const Catalog = lazy(() => import("./pages/Catalog"))
+const Contact = lazy(() => import("./pages/Contact"))
+const CourseDetails = lazy(() => import("./pages/CourseDetails"))
+const Dashboard = lazy(() => import("./pages/Dashboard"))
+const Error = lazy(() => import("./pages/Error"))
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"))
+const SearchResults = lazy(() => import("./pages/SearchResults"))
+const VerifyCertificate = lazy(() => import("./pages/VerifyCertificate"))
+const LearningPaths = lazy(() => import("./pages/LearningPaths"))
+const LearningPathDetails = lazy(() => import("./pages/LearningPathDetails"))
+const LegalPage = lazy(() => import("./pages/LegalPage"))
+const Login = lazy(() => import("./pages/Login"))
+const Signup = lazy(() => import("./pages/Signup"))
+const UpdatePassword = lazy(() => import("./pages/UpdatePassword"))
+const VerifyEmail = lazy(() => import("./pages/VerifyEmail"))
+const ViewCourse = lazy(() => import("./pages/ViewCourse"))
+
 
 function App() {
   const dispatch = useDispatch()
@@ -99,6 +103,14 @@ function App() {
     <div className="flex min-h-screen w-screen flex-col bg-richblack-900 font-sans">
       <Navbar />
       <ErrorBoundary resetKey={location.pathname}>
+      {/* Pages load on demand, so the first visit doesn't download every page. */}
+      <Suspense
+        fallback={
+          <div className="grid min-h-[calc(100vh-3.5rem)] place-items-center">
+            <div className="spinner"></div>
+          </div>
+        }
+      >
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
@@ -241,6 +253,7 @@ function App() {
         {/* 404 Page */}
         <Route path="*" element={<Error />} />
       </Routes>
+      </Suspense>
       </ErrorBoundary>
 
       {/* ✅ Show ChatBot only if user is logged in */}

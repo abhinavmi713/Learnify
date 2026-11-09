@@ -3,6 +3,7 @@ import { toast } from "react-hot-toast"
 import { setAppliedCoupon } from "../../slices/cartSlice"
 import { apiConnector } from "../apiConnector"
 import { couponEndpoints } from "../apis"
+import { devLog } from "../../utils/devLog"
 
 const { VALIDATE_COUPON_API } = couponEndpoints
 
@@ -22,7 +23,7 @@ export function applyCoupon(code, courseIds, token) {
       dispatch(setAppliedCoupon(response.data.data))
       toast.success(`Coupon applied — you saved ₹${response.data.data.discount}`)
     } catch (error) {
-      console.log("APPLY_COUPON ERROR............", error)
+      devLog("APPLY_COUPON ERROR............", error)
       toast.error(error?.response?.data?.message || error.message || "Invalid coupon")
     }
     toast.dismiss(toastId)

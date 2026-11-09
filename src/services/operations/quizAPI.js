@@ -2,6 +2,7 @@ import { toast } from "react-hot-toast"
 
 import { apiConnector } from "../apiConnector"
 import { quizEndpoints } from "../apis"
+import { devLog } from "../../utils/devLog"
 
 const {
   CREATE_QUIZ_API,
@@ -21,7 +22,7 @@ export async function createQuiz(data, token) {
     toast.success("Quiz created")
     return response.data.data
   } catch (error) {
-    console.log("CREATE_QUIZ_API ERROR............", error)
+    devLog("CREATE_QUIZ_API ERROR............", error)
     toast.error(error?.response?.data?.message || "Could not create quiz")
     return null
   }
@@ -35,7 +36,7 @@ export async function getInstructorQuizzes(courseId, token) {
     if (!response?.data?.success) throw new Error("Could not fetch quizzes")
     return response.data.data
   } catch (error) {
-    console.log("GET_QUIZZES_INSTRUCTOR_API ERROR............", error)
+    devLog("GET_QUIZZES_INSTRUCTOR_API ERROR............", error)
     return []
   }
 }
@@ -51,7 +52,7 @@ export async function deleteQuiz(quizId, token) {
     toast.success("Quiz deleted")
     return !!response?.data?.success
   } catch (error) {
-    console.log("DELETE_QUIZ_API ERROR............", error)
+    devLog("DELETE_QUIZ_API ERROR............", error)
     toast.error("Could not delete quiz")
     return false
   }
@@ -65,7 +66,7 @@ export async function getStudentQuizzes(courseId, token) {
     if (!response?.data?.success) throw new Error("Could not fetch quizzes")
     return response.data.data
   } catch (error) {
-    console.log("GET_QUIZZES_STUDENT_API ERROR............", error)
+    devLog("GET_QUIZZES_STUDENT_API ERROR............", error)
     return []
   }
 }
@@ -78,7 +79,7 @@ export async function generateQuizDraft(data, token) {
     if (!response?.data?.success) throw new Error(response?.data?.message)
     return response.data.data
   } catch (error) {
-    console.log("GENERATE_QUIZ_DRAFT_API ERROR............", error)
+    devLog("GENERATE_QUIZ_DRAFT_API ERROR............", error)
     toast.error(error?.response?.data?.message || "Could not generate quiz draft")
     return null
   }
@@ -92,7 +93,7 @@ export async function submitQuiz(data, token) {
     if (!response?.data?.success) throw new Error(response?.data?.message)
     return response.data
   } catch (error) {
-    console.log("SUBMIT_QUIZ_API ERROR............", error)
+    devLog("SUBMIT_QUIZ_API ERROR............", error)
     toast.error(error?.response?.data?.message || "Could not submit quiz")
     return null
   }

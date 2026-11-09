@@ -55,8 +55,9 @@ const resetPasswordSchema = z
     path: ["confirmPassword"],
   })
 
-// 6-digit authenticator code or a recovery code like "a1b2c-3d4e5".
-const secondFactorCode = z.string().trim().min(6).max(20)
+// 6-digit authenticator code or a recovery code such as "a1b2c-3d4e5-f6a7b-8c9d0"
+// (older codes are shorter: "a1b2c-3d4e5").
+const secondFactorCode = z.string().trim().min(6).max(32)
 
 const loginTwoFactorSchema = z.object({
   challenge: z.string().min(1, "Sign-in expired, please log in again"),

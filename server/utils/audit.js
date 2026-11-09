@@ -5,6 +5,7 @@ const logger = require("./logger")
 // fail the action itself, but it is logged loudly so it can be investigated.
 async function recordAudit(req, { action, outcome = "success", actor, targetType, targetId, metadata } = {}) {
   const who = actor || req?.authUser || null
+  // req is null for background work (the refund worker, Razorpay webhooks).
   try {
     await AuditLog.create({
       action,

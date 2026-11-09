@@ -1,5 +1,3 @@
-// Dynamic import: node-fetch v3 is ESM-only.
-const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args))
 
 // Kept in one place so a model rename (Google retires these periodically)
 // only needs to change here instead of in every AI-assist route.
@@ -13,10 +11,12 @@ async function callGemini(prompt, { temperature = 0.7, maxOutputTokens = 1536 } 
   }
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // In a header, not the URL, where proxies and monitoring often log it.
+      headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
+      signal: AbortSignal.timeout(30000),
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: { temperature, topK: 40, topP: 0.95, maxOutputTokens },

@@ -7,7 +7,7 @@ const { getPagination, buildPaginationMeta } = require("../utils/pagination")
 // Admin-only: create a coupon
 exports.createCoupon = async (req, res) => {
   try {
-    const { code, discountType, discountValue, maxUses, expiresAt } = req.body
+    const { code, discountType, discountValue, maxUses, expiresAt , perUserLimit } = req.body
 
     if (!code || !discountType || !discountValue) {
       return res.status(400).json({
@@ -112,7 +112,7 @@ exports.validateCoupon = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid course ID" })
     }
 
-    const { coupon, error } = await findRedeemableCoupon(code)
+    const { coupon, error } = await findRedeemableCoupon(code, req.user?.id)
     if (error) {
       return res.status(400).json({ success: false, message: error })
     }

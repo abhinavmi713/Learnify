@@ -2,6 +2,7 @@ import { toast } from "react-hot-toast"
 
 import { apiConnector } from "../apiConnector"
 import { learningPathEndpoints } from "../apis"
+import { devLog } from "../../utils/devLog"
 
 const {
   GET_ALL_LEARNING_PATHS_API,
@@ -16,7 +17,7 @@ export async function getAllLearningPaths() {
     const response = await apiConnector("GET", GET_ALL_LEARNING_PATHS_API)
     return response?.data?.data || []
   } catch (error) {
-    console.log("GET_ALL_LEARNING_PATHS_API ERROR............", error)
+    devLog("GET_ALL_LEARNING_PATHS_API ERROR............", error)
     return []
   }
 }
@@ -27,7 +28,7 @@ export async function getLearningPathsPage(page = 1) {
     const response = await apiConnector("GET", GET_ALL_LEARNING_PATHS_API, null, null, { page })
     return { items: response?.data?.data || [], pagination: response?.data?.pagination || null }
   } catch (error) {
-    console.log("GET_ALL_LEARNING_PATHS_API ERROR............", error)
+    devLog("GET_ALL_LEARNING_PATHS_API ERROR............", error)
     return { items: [], pagination: null }
   }
 }
@@ -37,7 +38,7 @@ export async function getLearningPathDetails(pathId) {
     const response = await apiConnector("GET", `${GET_LEARNING_PATH_DETAILS_API}/${pathId}`)
     return response?.data?.data || null
   } catch (error) {
-    console.log("GET_LEARNING_PATH_DETAILS_API ERROR............", error)
+    devLog("GET_LEARNING_PATH_DETAILS_API ERROR............", error)
     return null
   }
 }
@@ -51,7 +52,7 @@ export async function createLearningPath(data, token) {
     toast.success("Learning path created")
     return true
   } catch (error) {
-    console.log("CREATE_LEARNING_PATH_API ERROR............", error)
+    devLog("CREATE_LEARNING_PATH_API ERROR............", error)
     toast.error(error?.response?.data?.message || "Could not create learning path")
     return false
   }
@@ -66,7 +67,7 @@ export async function updateLearningPath(data, token) {
     toast.success("Learning path updated")
     return true
   } catch (error) {
-    console.log("UPDATE_LEARNING_PATH_API ERROR............", error)
+    devLog("UPDATE_LEARNING_PATH_API ERROR............", error)
     toast.error(error?.response?.data?.message || "Could not update learning path")
     return false
   }
@@ -84,7 +85,7 @@ export async function deleteLearningPath(pathId, token) {
     toast.success("Learning path deleted")
     return true
   } catch (error) {
-    console.log("DELETE_LEARNING_PATH_API ERROR............", error)
+    devLog("DELETE_LEARNING_PATH_API ERROR............", error)
     toast.error("Could not delete learning path")
     return false
   }

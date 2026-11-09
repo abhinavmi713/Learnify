@@ -12,10 +12,13 @@ import { SocketProvider } from "./context/SocketContext";
 import { installSessionHandling } from "./services/apiConnector";
 import { setToken } from "./slices/authSlice";
 import { setUser } from "./slices/profileSlice";
+import { cartEffects, persistCart } from "./slices/cartEffects";
 
 const store = configureStore({
   reducer: rootReducer,
+  middleware: (getDefault) => getDefault().prepend(cartEffects.middleware),
 });
+persistCart(store);
 
 // Keeps the 15-minute access token fresh (see services/apiConnector.js).
 let endedNotice = false;

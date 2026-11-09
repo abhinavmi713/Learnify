@@ -552,13 +552,6 @@ exports.getFullCourseDetails = async (req, res) => {
       })
     }
 
-    // if (courseDetails.status === "Draft") {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: `Accessing a draft course is forbidden`,
-    //   });
-    // }
-
     let totalDurationInSeconds = 0
     courseDetails.courseContent.forEach((content) => {
       content.subSection.forEach((subSection) => {
@@ -628,7 +621,7 @@ exports.deleteCourse = async (req, res) => {
     // Find the course
     const course = await Course.findById(courseId)
     if (!course) {
-      return res.status(404).json({ message: "Course not found" })
+      return res.status(404).json({ success: false, message: "Course not found" })
     }
 
     // Only the instructor who owns this course may delete it
@@ -659,6 +652,7 @@ exports.deleteCourse = async (req, res) => {
 // Search & filter published courses: free-text search, category, price range,
 // minimum rating, and sort — with pagination.
 const SORT_OPTIONS = {
+  // Text-score order when the query used the text index (see below), else newest.
   relevance: { createdAt: -1 },
   popular: { studentsCount: -1 },
   newest: { createdAt: -1 },
@@ -725,7 +719,8 @@ async function mongoSearchCourses(req, res) {
       minPrice,
       maxPrice,
       minRating,
-      sortBy = "newest",
+      // Empty means "best match" when searching, newest otherwise.
+      sortBy = "",
       page = 1,
       limit = 12,
     } = req.body
@@ -765,7 +760,51 @@ async function mongoSearchCourses(req, res) {
 
     const pageNum = Math.min(MAX_PAGE, Math.max(1, parseInt(page, 10) || 1))
     const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 12))
-    const sortStage = SORT_OPTIONS[sortBy] || SORT_OPTIONS.newest
+    // "Best match" (the default when searching) ranks by text score when the
+    // text index was used; otherwise there's no relevance to rank by, so newest.
+    const relevance = (!sortBy || sortBy === "relevance") && match.$text
+    const sortStage = relevance ? { score: { $meta: "textScore" }, createdAt: -1 } : SORT_OPTIONS[sortBy] || SORT_OPTIONS.newest
+
+    // Sorting by stored fields doesn't need the reviews, so page first and join
+    // reviews for that page only. (Joining every match first made page 1 take as
+    // long as page 1,400.) Rating sorts and filters still need the join first.
+    const needsReviewsFirst = sortBy === "ratingHighLow" || sortBy === "popular" || (minRating !== undefined && Number.isFinite(Number(minRating)))
+    if (!needsReviewsFirst) {
+      const [result] = await Course.aggregate([
+        { $match: match },
+        ...(relevance ? [{ $addFields: { score: { $meta: "textScore" } } }] : []),
+        { $sort: sortStage },
+        {
+          $facet: {
+            data: [
+              { $skip: (pageNum - 1) * limitNum },
+              { $limit: limitNum },
+              { $lookup: { from: "ratingandreviews", localField: "ratingAndReviews", foreignField: "_id", as: "reviews", pipeline: [{ $project: { rating: 1 } }] } },
+              {
+                $addFields: {
+                  avgRating: { $ifNull: [{ $avg: "$reviews.rating" }, 0] },
+                  ratingCount: { $size: "$reviews" },
+                  studentsCount: { $size: { $ifNull: ["$studentsEnroled", []] } },
+                },
+              },
+              { $project: { reviews: 0, score: 0 } },
+            ],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ])
+      const total = result.totalCount[0]?.count || 0
+      const populated = await Course.populate(result.data, [
+        { path: "instructor", select: "firstName lastName" },
+        { path: "category", select: "name" },
+      ])
+      return res.status(200).json({
+        success: true,
+        engine: "mongo",
+        data: populated,
+        pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) },
+      })
+    }
 
     const pipeline = [
       { $match: match },

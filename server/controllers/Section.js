@@ -59,7 +59,8 @@ exports.createSection = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Section created successfully",
-      updatedCourse,
+      data: updatedCourse,
+      updatedCourse, // older clients read this name
     })
   } catch (error) {
     console.error(error)

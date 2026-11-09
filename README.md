@@ -108,6 +108,10 @@ npm run dev                # frontend on :3000 and API on :4000 (the API also ru
 Demo accounts (password `Learnify@123`, local only): `admin@learnify.com`, `instructor@learnify.com`,
 `student@learnify.com`. Coupon `WELCOME20`.
 
+These passwords are public, so never seed a production database (the seed script refuses when
+`NODE_ENV=production`). On a deployed site, create a real admin with `node scripts/createAdmin.js` and a strong password.
+
+
 Optional:
 
 ```bash

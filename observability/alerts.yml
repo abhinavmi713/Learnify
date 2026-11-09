@@ -17,6 +17,14 @@ groups:
         annotations:
           summary: "p95 API latency above 1s"
 
+      - alert: OutboxEventsFailed
+        expr: learnify_outbox_failed_events > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $value }} outbox event(s) gave up and will not be published"
+          description: "Fix the cause, then run npm run outbox:requeue."
       - alert: OutboxLagging
         expr: learnify_outbox_oldest_pending_age_seconds > 300
         for: 5m

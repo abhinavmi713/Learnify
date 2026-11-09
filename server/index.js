@@ -32,6 +32,9 @@ require("./search/courseIndex").bootstrapSearch();
 // Outbox -> broker. The relay publishes events that business code recorded in
 // the database; without RABBITMQ_URL it hands them to in-process consumers.
 rabbit.start();
+// Declare every worker queue from here too, so an event published before the
+// worker has ever run still has somewhere to go.
+rabbit.declareQueues(require("./workers/consumers").consumers).catch(() => {});
 relay.startRelay();
 
 // With RabbitMQ configured the consumers normally run in a separate process

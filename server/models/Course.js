@@ -8,7 +8,6 @@ const coursesSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     required: true,
     ref: "user",
-    index: true,
   },
   whatYouWillLearn: {
     type: String,
@@ -53,7 +52,6 @@ const coursesSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: ["Draft", "Pending", "Published"],
-    index: true,
   },
   // Set by an admin when rejecting a course submitted for review (status reverts to Draft).
   rejectionReason: {
@@ -88,4 +86,7 @@ coursesSchema.index({ courseContent: 1 })
 coursesSchema.index({ instructor: 1, deletedAt: 1 })
 
 // Export the Courses model
+// updatedAt lets a search rebuild find courses edited while it ran.
+coursesSchema.set("timestamps", { createdAt: false, updatedAt: true })
+
 module.exports = mongoose.model("Course", coursesSchema)

@@ -117,9 +117,9 @@ describe("sessions: short access token + rotating refresh token", () => {
     const racing = await refresh(stolen)
     expect(racing.status).toBe(409)
 
-    // Later, the same used token is a replay.
+    // Later, the same used token from another browser is a replay.
     await RefreshToken.updateMany({ usedAt: { $ne: null } }, { $set: { usedAt: new Date(Date.now() - 60000) } })
-    const replay = await refresh(stolen)
+    const replay = await refresh(stolen).set("User-Agent", "attacker-browser")
     expect(replay.status).toBe(401)
     expect(replay.body.code).toBe("reuse")
 
@@ -182,7 +182,8 @@ describe("two-factor authentication", () => {
       .set(bearer(token))
       .send({ code: totp.codeForStep(secret, totp.stepAt()), password: "Password123" })
     expect(enabled.status).toBe(200)
-    return { token, secret, recoveryCodes: enabled.body.data.recoveryCodes }
+    // Turning 2FA on ends older access tokens; the response carries a new one.
+    return { token: enabled.body.data.token, secret, recoveryCodes: enabled.body.data.recoveryCodes }
   }
 
   test("the secret is stored encrypted and never returned with the user", async () => {

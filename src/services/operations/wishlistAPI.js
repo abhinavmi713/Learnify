@@ -3,6 +3,7 @@ import { toast } from "react-hot-toast"
 import { setWishlistIds, addWishlistId, removeWishlistId } from "../../slices/wishlistSlice"
 import { apiConnector } from "../apiConnector"
 import { wishlistEndpoints } from "../apis"
+import { devLog } from "../../utils/devLog"
 
 const { GET_WISHLIST_API, ADD_TO_WISHLIST_API, REMOVE_FROM_WISHLIST_API } =
   wishlistEndpoints
@@ -16,7 +17,7 @@ export async function getWishlist(token) {
     if (!response?.data?.success) throw new Error("Could not fetch wishlist")
     return response.data.data
   } catch (error) {
-    console.log("GET_WISHLIST_API ERROR............", error)
+    devLog("GET_WISHLIST_API ERROR............", error)
     return []
   }
 }
@@ -49,7 +50,7 @@ export function toggleWishlist(courseId, isWishlisted, token) {
       if (!response?.data?.success) throw new Error("Wishlist update failed")
       toast.success(isWishlisted ? "Removed from wishlist" : "Added to wishlist")
     } catch (error) {
-      console.log("WISHLIST TOGGLE ERROR............", error)
+      devLog("WISHLIST TOGGLE ERROR............", error)
       // Revert the optimistic update
       if (isWishlisted) {
         dispatch(addWishlistId(courseId))

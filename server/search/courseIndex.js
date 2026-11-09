@@ -8,6 +8,11 @@ require("../models/Section")
 require("../models/Subsection")
 const { es, isConfigured } = require("../config/elasticsearch")
 const logger = require("../utils/logger")
+const { retry } = require("../utils/resilience")
+
+// Index writes replace the whole document, so retrying a brief failure is safe.
+const transient = (error) => !error.status || error.status >= 500 || error.status === 429
+const write = (method, path, body) => retry(() => es(method, path, body), { retries: 2, baseMs: 200, shouldRetry: transient })
 
 // The application always talks to the alias "courses". Each full rebuild
 // creates a new physical index (courses_<timestamp>), fills it, and swaps the
@@ -134,19 +139,22 @@ async function indexCourse(courseId) {
   const doc = await buildDocument(courseId)
   if (!doc) {
     try {
-      await es("DELETE", `/${alias()}/_doc/${courseId}`)
+      await write("DELETE", `/${alias()}/_doc/${courseId}`)
     } catch (error) {
       if (error.status !== 404) throw error
     }
     return { removed: true }
   }
-  await es("PUT", `/${alias()}/_doc/${courseId}`, doc)
+  await write("PUT", `/${alias()}/_doc/${courseId}`, doc)
   return { indexed: true }
 }
 
 // Full rebuild into a fresh index, then an atomic alias swap. Used by
 // `npm run search:reindex` and after mapping changes.
 async function rebuild() {
+  // Edits during the rebuild go to the old index through the alias, so courses
+  // changed after this moment are indexed again once the new index is live.
+  const startedAt = new Date()
   const name = await createIndex()
   const ids = await Course.find({ status: "Published", deletedAt: null }).distinct("_id")
   let count = 0
@@ -170,7 +178,9 @@ async function rebuild() {
     actions: [...old.map((index) => ({ remove: { index, alias: alias() } })), { add: { index: name, alias: alias() } }],
   })
   for (const index of old) await es("DELETE", `/${index}`).catch(() => {})
-  return { index: name, count, replaced: old }
+  const changed = await Course.find({ updatedAt: { $gte: startedAt } }).distinct("_id")
+  for (const id of changed) await indexCourse(String(id))
+  return { index: name, count, replaced: old, changedDuringRebuild: changed.length }
 }
 
 // Called at startup: registers the health check and creates the index on first

@@ -2,6 +2,7 @@ import { toast } from "react-hot-toast"
 
 import { apiConnector } from "../apiConnector"
 import { notesEndpoints } from "../apis"
+import { devLog } from "../../utils/devLog"
 
 const { CREATE_NOTE_API, GET_NOTES_API, DELETE_NOTE_API } = notesEndpoints
 
@@ -13,7 +14,7 @@ export async function getNotes(subsectionId, token) {
     if (!response?.data?.success) throw new Error("Could not fetch notes")
     return response.data.data
   } catch (error) {
-    console.log("GET_NOTES_API ERROR............", error)
+    devLog("GET_NOTES_API ERROR............", error)
     return []
   }
 }
@@ -26,7 +27,7 @@ export async function createNote(data, token) {
     if (!response?.data?.success) throw new Error(response?.data?.message || "Could not add note")
     return response.data.data
   } catch (error) {
-    console.log("CREATE_NOTE_API ERROR............", error)
+    devLog("CREATE_NOTE_API ERROR............", error)
     toast.error(error?.response?.data?.message || "Could not add note")
     return null
   }
@@ -42,7 +43,7 @@ export async function deleteNote(noteId, token) {
     )
     return !!response?.data?.success
   } catch (error) {
-    console.log("DELETE_NOTE_API ERROR............", error)
+    devLog("DELETE_NOTE_API ERROR............", error)
     toast.error("Could not delete note")
     return false
   }

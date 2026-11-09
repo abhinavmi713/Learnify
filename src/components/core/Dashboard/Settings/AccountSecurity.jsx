@@ -13,6 +13,7 @@ import {
   startTwoFactorSetup,
 } from "../../../../services/operations/securityAPI"
 import { setUser } from "../../../../slices/profileSlice"
+import { setToken } from "../../../../slices/authSlice"
 import IconBtn from "../../../Common/IconBtn"
 
 // Readable device name from a user-agent string.
@@ -63,10 +64,15 @@ function TwoFactor() {
   const confirmSetup = async (e) => {
     e.preventDefault()
     setBusy(true)
-    const codes = await enableTwoFactor(token, code.trim(), password)
+    const result = await enableTwoFactor(token, code.trim(), password)
     setBusy(false)
-    if (!codes) return
-    setRecoveryCodes(codes)
+    if (!result) return
+    // Turning 2FA on signs out other devices and replaces this device's token.
+    if (result.token) {
+      localStorage.setItem("token", JSON.stringify(result.token))
+      dispatch(setToken(result.token))
+    }
+    setRecoveryCodes(result.recoveryCodes)
     setSetup(null)
     setCode("")
     setPassword("")

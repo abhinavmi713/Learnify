@@ -4,7 +4,7 @@ const mongoose = require("mongoose")
 // secret only the instructor and Learnify know.
 const webhookSchema = new mongoose.Schema(
   {
-    owner: { type: mongoose.Schema.Types.ObjectId, ref: "user", required: true, index: true },
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: "user", required: true }, // indexed by { owner, active }
     url: { type: String, required: true, maxlength: 2000 },
     description: { type: String, default: "", maxlength: 200 },
     events: { type: [String], required: true },

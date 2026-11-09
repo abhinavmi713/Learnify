@@ -4,6 +4,7 @@ import { setLoading, setUser } from "../../slices/profileSlice"
 import { apiConnector } from "../apiConnector"
 import { profileEndpoints } from "../apis"
 import { logout } from "./authAPI"
+import { devLog } from "../../utils/devLog"
 
 const {
   GET_USER_DETAILS_API,
@@ -18,7 +19,7 @@ export function getUserDetails(token, navigate) {
       const response = await apiConnector("GET", GET_USER_DETAILS_API, null, {
         Authorization: `Bearer ${token}`,
       })
-      console.log("GET_USER_DETAILS API RESPONSE............", response)
+      devLog("GET_USER_DETAILS API RESPONSE............", response)
 
       if (!response.data.success) {
         throw new Error(response.data.message)
@@ -28,7 +29,7 @@ export function getUserDetails(token, navigate) {
         : `https://api.dicebear.com/5.x/initials/svg?seed=${response.data.data.firstName} ${response.data.data.lastName}`
       dispatch(setUser({ ...response.data.data, image: userImage }))
     } catch (error) {
-      console.log("GET_USER_DETAILS API ERROR............", error)
+      devLog("GET_USER_DETAILS API ERROR............", error)
       // Only a rejected session means logging out. An outage must not sign people out.
       if (error?.response?.status === 401) dispatch(logout(navigate))
       toast.error("Could Not Get User Details")
@@ -48,7 +49,7 @@ export async function getUserEnrolledCourses(token) {
         Authorization: `Bearer ${token}`,
       }
     )
-    // console.log(
+    // devLog(
     //   "GET_USER_ENROLLED_COURSES_API API RESPONSE............",
     //   response
     // )
@@ -58,7 +59,7 @@ export async function getUserEnrolledCourses(token) {
     }
     result = response.data.data
   } catch (error) {
-    console.log("GET_USER_ENROLLED_COURSES_API API ERROR............", error)
+    devLog("GET_USER_ENROLLED_COURSES_API API ERROR............", error)
     toast.error("Could Not Get Enrolled Courses")
   }
   return result
@@ -71,7 +72,7 @@ export async function getMyBadges(token) {
     })
     return response?.data?.data || []
   } catch (error) {
-    console.log("GET_MY_BADGES_API ERROR............", error)
+    devLog("GET_MY_BADGES_API ERROR............", error)
     return []
   }
 }
@@ -82,13 +83,13 @@ export async function getInstructorData(token) {
     const response = await apiConnector("GET", GET_INSTRUCTOR_DATA_API, null, {
       Authorization: `Bearer ${token}`,
     })
-    console.log("GET_INSTRUCTOR_DATA_API API RESPONSE............", response)
+    devLog("GET_INSTRUCTOR_DATA_API API RESPONSE............", response)
     result = {
       courses: response?.data?.courses || [],
       enrollmentTrend: response?.data?.enrollmentTrend || [],
     }
   } catch (error) {
-    console.log("GET_INSTRUCTOR_DATA_API API ERROR............", error)
+    devLog("GET_INSTRUCTOR_DATA_API API ERROR............", error)
     toast.error("Could Not Get Instructor Data")
   }
   return result

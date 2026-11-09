@@ -6,6 +6,7 @@ import { setPaymentLoading } from "../../slices/courseSlice"
 import { apiConnector } from "../apiConnector"
 import { idempotencyKey } from "../../utils/idempotencyKey"
 import { studentEndpoints } from "../apis"
+import { devLog } from "../../utils/devLog"
 
 const {
   COURSE_PAYMENT_API,
@@ -56,7 +57,7 @@ export async function BuyCourse(
     if (!orderResponse.data.success) {
       throw new Error(orderResponse.data.message)
     }
-    console.log("PAYMENT RESPONSE FROM BACKEND............", orderResponse.data)
+    devLog("PAYMENT RESPONSE FROM BACKEND............", orderResponse.data)
 
     // A 100%-off coupon enrolls directly with no Razorpay checkout at all.
     if (orderResponse.data.freeEnrollment) {
@@ -102,10 +103,10 @@ export async function BuyCourse(
     paymentObject.open()
     paymentObject.on("payment.failed", function (response) {
       toast.error("Oops! Payment Failed.")
-      console.log(response.error)
+      devLog(response.error)
     })
   } catch (error) {
-    console.log("PAYMENT API ERROR............", error)
+    devLog("PAYMENT API ERROR............", error)
     toast.error(error?.response?.data?.message || "Could Not make Payment.")
   }
   toast.dismiss(toastId)
@@ -136,7 +137,7 @@ async function verifyPayment(bodyData, token, navigate, dispatch) {
       }
     }
 
-    console.log("VERIFY PAYMENT RESPONSE FROM BACKEND............", response)
+    devLog("VERIFY PAYMENT RESPONSE FROM BACKEND............", response)
 
     if (!response.data.success) {
       throw new Error(response.data.message)
@@ -146,7 +147,7 @@ async function verifyPayment(bodyData, token, navigate, dispatch) {
     navigate("/dashboard/enrolled-courses")
     dispatch(removeCourses(bodyData.courses))
   } catch (error) {
-    console.log("PAYMENT VERIFY ERROR............", error)
+    devLog("PAYMENT VERIFY ERROR............", error)
     toast.error(error?.response?.data?.message || "Could Not Verify Payment.")
   }
   toast.dismiss(toastId)

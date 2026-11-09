@@ -38,6 +38,8 @@ export default function SearchResults() {
   // From Elasticsearch: course counts per category, and a spelling suggestion.
   const [categoryCounts, setCategoryCounts] = useState(null)
   const [didYouMean, setDidYouMean] = useState(null)
+  // "mongo" means the basic fallback answered (Elasticsearch unavailable).
+  const [engine, setEngine] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -90,6 +92,7 @@ export default function SearchResults() {
         res.facets ? Object.fromEntries(res.facets.categories.map((c) => [c._id, c.count])) : null
       )
       setDidYouMean(res.didYouMean || null)
+      setEngine(res.engine || null)
       setLoading(false)
     })()
     return () => {
@@ -114,6 +117,12 @@ export default function SearchResults() {
         <p className="mb-8 text-richblack-400">
           {loading ? "Searching..." : `${pagination.total} course${pagination.total === 1 ? "" : "s"} found`}
         </p>
+
+        {!loading && query && engine === "mongo" && (
+          <p className="-mt-6 mb-6 text-sm text-richblack-400">
+            Showing exact matches only: typo-tolerant search is unavailable right now, so check the spelling.
+          </p>
+        )}
 
         <div className="flex flex-col gap-8 lg:flex-row">
           {/* Filters sidebar */}

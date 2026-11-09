@@ -79,6 +79,8 @@ async function saveChatMessage(liveClassId, message) {
 function registerHandlers(socket) {
   const user = socket.data.user
   socket.join(`user:${user.id}`)
+  // So signing out one session can end that session's sockets only.
+  if (socket.data.jti) socket.join(`session:${socket.data.jti}`)
 
   // Switch the socket to one lecture room at a time.
   socket.on("lecture:join", async ({ subsectionId } = {}, ack = () => {}) => {
@@ -162,7 +164,8 @@ function initRealtime(httpServer) {
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth?.token
-      const { user } = await verifyAccessToken(token)
+      const { decoded, user } = await verifyAccessToken(token)
+      socket.data.jti = decoded.jti
       socket.data.user = {
         id: String(user._id),
         name: `${user.firstName} ${user.lastName}`,
@@ -203,6 +206,19 @@ async function closeRealtime() {
   adapterClients = []
 }
 
+// Ends live connections when sessions are revoked. A socket is only checked at
+// its handshake, so without this a signed-out (or deactivated) user would keep
+// receiving events. Works from the worker too, through the Redis emitter.
+function disconnectUser(userId) {
+  const t = target()
+  if (t) t.in(`user:${userId}`).disconnectSockets(true)
+}
+
+function disconnectSession(jti) {
+  const t = target()
+  if (t && jti) t.in(`session:${jti}`).disconnectSockets(true)
+}
+
 function getIO() {
   return io
 }
@@ -210,4 +226,4 @@ function getIO() {
 // Clients connected to this instance (exported as a Prometheus gauge).
 const connectionCount = () => (io ? io.engine.clientsCount : 0)
 
-module.exports = { initRealtime, emitToUser, emitToRoom, closeRealtime, getIO, connectionCount }
+module.exports = { initRealtime, emitToUser, emitToRoom, closeRealtime, getIO, connectionCount, disconnectUser, disconnectSession }

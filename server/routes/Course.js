@@ -56,12 +56,13 @@ const {
   updateWatchPosition,
 } = require("../controllers/courseProgress")
 // Importing Middlewares
-const { optionalAuth, auth, isInstructor, isStudent, requirePermission } = require("../middleware/auth")
+const { optionalAuth, auth, isInstructor, isStudent, requirePermission, requireAdmin2FA } = require("../middleware/auth")
 const { audited } = require("../utils/audit")
 const { idempotent } = require("../middleware/idempotency")
 const { aiLimiter } = require("../middleware/rateLimiter")
 const { cacheResponse } = require("../utils/cache")
 const { uploadImage, uploadVideo } = require("../middleware/upload")
+const { searchCoursesSchema, generateDescriptionSchema } = require("../validators/miscValidators")
 const { emitContentChanged } = require("../utils/contentEvents")
 const { courseIdSchema } = require("../validators/miscValidators")
 const { validate } = require("../middleware/validate")
@@ -76,7 +77,9 @@ const {
 // ********************************************************************************************************
 
 // Courses can Only be Created by Instructors
-router.post("/createCourse", auth, isInstructor, uploadImage, idempotent(), validate(createCourseSchema), createCourse)
+// Validation runs before the idempotency check, so a rejected request is not
+// stored against its key and the corrected one can be sent with the same key.
+router.post("/createCourse", auth, isInstructor, uploadImage, validate(createCourseSchema), idempotent(), createCourse)
 // Edit Course routes
 router.post("/editCourse", auth, isInstructor, uploadImage, emitContentChanged(), validate(editCourseSchema), editCourse)
 //Add a Section to a Course
@@ -97,13 +100,19 @@ router.post("/uploadSignature", auth, isInstructor, getUploadSignature)
 router.get("/getInstructorCourses", auth, isInstructor, getInstructorCourses)
 // Get all Registered Courses (cached briefly — this list changes rarely
 // relative to how often it's fetched)
-router.get("/getAllCourses", cacheResponse(60, { params: ["limit", "before"] }), getAllCourses)
+// Public, identical for everyone, and fine to be a minute old: let browsers and
+// CDNs reuse it briefly instead of asking the server every time.
+const publicCache = (seconds) => (req, res, next) => {
+  res.set("Cache-Control", `public, max-age=${seconds}, stale-while-revalidate=${seconds * 2}`)
+  next()
+}
+router.get("/getAllCourses", publicCache(30), cacheResponse(60, { params: ["limit", "before"] }), getAllCourses)
 // Search & filter courses (text search, category, price range, rating, sort, pagination)
-router.post("/searchCourses", searchCourses)
+router.post("/searchCourses", validate(searchCoursesSchema), searchCourses)
 // Search-box autocomplete: GET /suggest?q=jav
 router.get("/suggest", suggestCourses)
 // AI-assisted course description/benefits draft for instructors
-router.post("/generateDescription", auth, isInstructor, aiLimiter, generateCourseDescription)
+router.post("/generateDescription", auth, isInstructor, aiLimiter, validate(generateDescriptionSchema), generateCourseDescription)
 // Content-based "recommended for you" courses for a logged-in student
 router.get("/recommendations", auth, isStudent, getRecommendedCourses)
 // Get Details for a Specific Courses
@@ -115,17 +124,17 @@ router.post("/updateCourseProgress", auth, isStudent, validate(lectureProgressSc
 // To save the student's current playback position (for resume-on-return)
 router.post("/updateWatchPosition", auth, isStudent, validate(watchPositionSchema), updateWatchPosition)
 // Delete a Course
-router.delete("/deleteCourse", auth, isInstructor, emitContentChanged(), validate(courseIdSchema), deleteCourse)
+router.delete("/deleteCourse", auth, audited("course.archive", (req) => ({ targetType: "course", targetId: req.body?.courseId })), isInstructor, emitContentChanged(), validate(courseIdSchema), deleteCourse)
 // ********************************************************************************************************
 //                                      Category routes (Only by Admin)
 // ********************************************************************************************************
 // Category can Only be Created by Admin
 // TODO: Put IsAdmin Middleware here
 const manageCategories = requirePermission("category:manage")
-router.post("/createCategory", auth, manageCategories, audited("category.create", (req) => ({ targetType: "category", metadata: { name: req.body?.name } })), validate(createCategorySchema), createCategory)
-router.post("/updateCategory", auth, manageCategories, audited("category.update", (req) => ({ targetType: "category", targetId: req.body?.categoryId })), validate(updateCategorySchema), updateCategory)
-router.post("/deleteCategory", auth, manageCategories, audited("category.delete", (req) => ({ targetType: "category", targetId: req.body?.categoryId })), validate(categoryIdSchema), deleteCategory)
-router.get("/showAllCategories", cacheResponse(60, { params: [] }), showAllCategories)
+router.post("/createCategory", auth, requireAdmin2FA, audited("category.create", (req) => ({ targetType: "category", metadata: { name: req.body?.name } })), manageCategories, validate(createCategorySchema), createCategory)
+router.post("/updateCategory", auth, requireAdmin2FA, audited("category.update", (req) => ({ targetType: "category", targetId: req.body?.categoryId })), manageCategories, validate(updateCategorySchema), updateCategory)
+router.post("/deleteCategory", auth, requireAdmin2FA, audited("category.delete", (req) => ({ targetType: "category", targetId: req.body?.categoryId })), manageCategories, validate(categoryIdSchema), deleteCategory)
+router.get("/showAllCategories", publicCache(60), cacheResponse(60, { params: [] }), showAllCategories)
 router.post("/getCategoryPageDetails", validate(categoryIdSchema), categoryPageDetails)
 
 // ********************************************************************************************************

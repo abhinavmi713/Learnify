@@ -65,7 +65,8 @@ describe("OpenAPI", () => {
     expect(create.requestBody.content["application/json"].schema.required).toEqual(expect.arrayContaining(["code", "discountType"]))
     // Router-level guards (router.use(auth, ...)) apply to every route below them.
     expect(res.body.paths["/api/v1/webhooks/{id}/test"].post.description).toMatch(/webhook:manage/)
-    expect(res.body.paths["/api/v1/internal/courses"].get.security).toEqual([{ internalToken: [] }])
+    // Service-to-service routes are left out of the published spec.
+    expect(Object.keys(res.body.paths).some((p) => p.startsWith("/api/v1/internal"))).toBe(false)
   })
 
   test("Swagger UI is served", async () => {

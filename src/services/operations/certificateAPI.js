@@ -2,6 +2,7 @@ import { toast } from "react-hot-toast"
 
 import { apiConnector, axiosInstance } from "../apiConnector"
 import { certificateEndpoints } from "../apis"
+import { devLog } from "../../utils/devLog"
 
 const { GET_MY_CERTIFICATES_API, DOWNLOAD_CERTIFICATE_API, VERIFY_CERTIFICATE_API } =
   certificateEndpoints
@@ -14,7 +15,7 @@ export async function getMyCertificates(token) {
     if (!response?.data?.success) throw new Error("Could not fetch certificates")
     return response.data.data
   } catch (error) {
-    console.log("GET_MY_CERTIFICATES_API ERROR............", error)
+    devLog("GET_MY_CERTIFICATES_API ERROR............", error)
     return []
   }
 }
@@ -39,7 +40,7 @@ export async function downloadCertificate(certificateId, token) {
     link.remove()
     window.URL.revokeObjectURL(url)
   } catch (error) {
-    console.log("DOWNLOAD_CERTIFICATE_API ERROR............", error)
+    devLog("DOWNLOAD_CERTIFICATE_API ERROR............", error)
     toast.error("Could not download certificate")
   }
 }
@@ -49,7 +50,7 @@ export async function verifyCertificate(certificateId) {
     const response = await apiConnector("GET", `${VERIFY_CERTIFICATE_API}/${certificateId}`)
     return response.data
   } catch (error) {
-    console.log("VERIFY_CERTIFICATE_API ERROR............", error)
+    devLog("VERIFY_CERTIFICATE_API ERROR............", error)
     return error?.response?.data || { success: false, valid: false }
   }
 }

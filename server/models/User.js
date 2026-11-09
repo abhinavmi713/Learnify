@@ -74,11 +74,7 @@ const userSchema = new mongoose.Schema(
       },
       select: false,
       default: () => ({}),
-    },
-    approved: {
-      type: Boolean,
-      default: true,
-    },
+    },
     additionalDetails: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
@@ -89,10 +85,7 @@ const userSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: "Course",
       },
-    ],
-    token: {
-      type: String,
-    },
+    ],
     // Hashed (never plaintext) single-use token used for the forgot-password flow.
     resetPasswordToken: {
       type: String,

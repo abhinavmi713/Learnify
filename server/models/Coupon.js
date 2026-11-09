@@ -27,6 +27,11 @@ const couponSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // How many orders one student may use it on. null = no per-student limit.
+    perUserLimit: {
+      type: Number,
+      default: null,
+    },
     expiresAt: {
       type: Date,
       default: null, // null = never expires

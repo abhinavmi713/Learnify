@@ -8,7 +8,7 @@ require("../tracing").startTracing("learnify-worker")
 require("dotenv").config()
 
 const http = require("http")
-const mongoose = require("mongoose")
+const mongoose = require("./../config/mongoose")
 const { validateEnv } = require("../config/env")
 validateEnv()
 

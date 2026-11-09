@@ -26,7 +26,7 @@ const {
 } = require("../controllers/resetPassword")
 
 const { auth, optionalAuth } = require("../middleware/auth")
-const { authLimiter } = require("../middleware/rateLimiter")
+const { loginLimiter, twoFactorLimiter, signupLimiter, otpLimiter, passwordResetLimiter } = require("../middleware/rateLimiter")
 const { validate } = require("../middleware/validate")
 const { tokenBucketLimiter } = require("../utils/tokenBucket")
 const {
@@ -49,7 +49,7 @@ const {
 // ********************************************************************************************************
 
 // Route for user login
-// Two layers: authLimiter caps attempts per IP; the bucket caps attempts per
+// Two layers: loginLimiter caps failed attempts per IP; the bucket caps attempts per
 // target account, so a botnet rotating IPs still cannot guess one password fast.
 const loginBucket = tokenBucketLimiter({
   name: "login",
@@ -58,10 +58,10 @@ const loginBucket = tokenBucketLimiter({
   keyFn: (req) => String(req.body?.email || "").trim().toLowerCase(),
   message: "Too many login attempts for this account. Please wait a little before trying again.",
 })
-router.post("/login", authLimiter, loginBucket, validate(loginSchema), login)
+router.post("/login", loginLimiter, loginBucket, validate(loginSchema), login)
 
 // Second login step for accounts with two-factor authentication.
-router.post("/login/2fa", authLimiter, validate(loginTwoFactorSchema), loginTwoFactor)
+router.post("/login/2fa", twoFactorLimiter, validate(loginTwoFactorSchema), loginTwoFactor)
 
 // The refresh cookie is sent automatically by the browser, so a cross-site page
 // could try to trigger a refresh. Requiring a custom header forces a CORS
@@ -89,7 +89,7 @@ router.post("/2fa/enable", auth, validate(twoFactorCodeSchema), enableTwoFactor)
 router.post("/2fa/disable", auth, validate(disableTwoFactorSchema), disableTwoFactor)
 
 // Route for user signup
-router.post("/signup", authLimiter, validate(signupSchema), signup)
+router.post("/signup", signupLimiter, validate(signupSchema), signup)
 
 // Route for sending OTP to the user's email
 // Each new code gets a fresh set of guesses, so limit new codes per address too.
@@ -100,7 +100,7 @@ const otpBucket = tokenBucketLimiter({
   keyFn: (req) => String(req.body?.email || "").trim().toLowerCase(),
   message: "Too many codes requested for this email. Please wait a little before trying again.",
 })
-router.post("/sendotp", authLimiter, otpBucket, validate(sendOtpSchema), sendotp)
+router.post("/sendotp", otpLimiter, otpBucket, validate(sendOtpSchema), sendotp)
 
 // Route for Changing the password
 router.post("/changepassword", auth, validate(changePasswordSchema), changePassword)
@@ -112,13 +112,13 @@ router.post("/changepassword", auth, validate(changePasswordSchema), changePassw
 // Route for generating a reset password token
 router.post(
   "/reset-password-token",
-  authLimiter,
+  passwordResetLimiter,
   validate(resetPasswordTokenSchema),
   resetPasswordToken
 )
 
 // Route for resetting user's password after verification
-router.post("/reset-password", authLimiter, validate(resetPasswordSchema), resetPassword)
+router.post("/reset-password", passwordResetLimiter, validate(resetPasswordSchema), resetPassword)
 
 // Export the router for use in the main application
 module.exports = router

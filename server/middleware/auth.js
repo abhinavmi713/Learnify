@@ -117,6 +117,14 @@ const requireRole = (role, message) => {
 	return middleware;
 };
 
+// In production, admin tools need two-factor authentication. Admins can still
+// reach their settings to turn it on. REQUIRE_ADMIN_2FA=0 switches this off.
+exports.requireAdmin2FA = (req, res, next) => {
+	const enforced = process.env.NODE_ENV === "production" && process.env.REQUIRE_ADMIN_2FA !== "0";
+	if (!enforced || req.authUser?.twoFactorEnabled) return next();
+	return forbidden(res, "Turn on two-factor authentication in Settings to use admin tools.");
+};
+
 exports.isStudent = requireRole("Student", "This is a Protected Route for Students");
 exports.isAdmin = requireRole("Admin", "This is a Protected Route for Admin");
 exports.isInstructor = requireRole("Instructor", "This is a Protected Route for Instructor");

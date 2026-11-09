@@ -1,5 +1,4 @@
 import { createSlice } from "@reduxjs/toolkit"
-import { toast } from "react-hot-toast"
 
 const initialState = {
   cart: localStorage.getItem("cart")
@@ -17,6 +16,8 @@ const initialState = {
   appliedCoupon: null,
 }
 
+// Reducers only compute state. Saving the cart and showing toasts happen in
+// slices/cartEffects.js, so reducers stay pure (and replayable in dev tools).
 const cartSlice = createSlice({
   name: "cart",
   initialState,
@@ -27,7 +28,6 @@ const cartSlice = createSlice({
 
       if (index >= 0) {
         // If the course is already in the cart, do not modify the quantity
-        toast.error("Course already in cart")
         return
       }
       // If the course is not in the cart, add it to the cart
@@ -35,12 +35,6 @@ const cartSlice = createSlice({
       // Update the total quantity and price
       state.totalItems++
       state.total += course.price
-      // Update to localstorage
-      localStorage.setItem("cart", JSON.stringify(state.cart))
-      localStorage.setItem("total", JSON.stringify(state.total))
-      localStorage.setItem("totalItems", JSON.stringify(state.totalItems))
-      // show toast
-      toast.success("Course added to cart")
     },
     removeFromCart: (state, action) => {
       const courseId = action.payload
@@ -51,15 +45,9 @@ const cartSlice = createSlice({
         state.totalItems--
         state.total -= state.cart[index].price
         state.cart.splice(index, 1)
-        // Update to localstorage
-        localStorage.setItem("cart", JSON.stringify(state.cart))
-        localStorage.setItem("total", JSON.stringify(state.total))
-        localStorage.setItem("totalItems", JSON.stringify(state.totalItems))
         // A coupon's discount was computed against the old cart contents — drop it
         // so the user re-applies (and re-validates) it against the new total.
         state.appliedCoupon = null
-        // show toast
-        toast.success("Course removed from cart")
       }
     },
     // Silently drops the given courses (just bought, or already owned), keeping
@@ -72,19 +60,27 @@ const cartSlice = createSlice({
       state.totalItems = kept.length
       state.total = kept.reduce((sum, item) => sum + (item.price || 0), 0)
       state.appliedCoupon = null
-      localStorage.setItem("cart", JSON.stringify(state.cart))
-      localStorage.setItem("total", JSON.stringify(state.total))
-      localStorage.setItem("totalItems", JSON.stringify(state.totalItems))
+    },
+    // Brings stored copies up to date with the server (price changes).
+    updateCartPrices: (state, action) => {
+      const prices = action.payload || {}
+      let changed = false
+      for (const item of state.cart) {
+        const price = prices[String(item._id)]
+        if (typeof price === "number" && price !== item.price) {
+          item.price = price
+          changed = true
+        }
+      }
+      if (!changed) return
+      state.total = state.cart.reduce((sum, item) => sum + (item.price || 0), 0)
+      state.appliedCoupon = null
     },
     resetCart: (state) => {
       state.cart = []
       state.total = 0
       state.totalItems = 0
       state.appliedCoupon = null
-      // Update to localstorage
-      localStorage.removeItem("cart")
-      localStorage.removeItem("total")
-      localStorage.removeItem("totalItems")
     },
     setAppliedCoupon: (state, action) => {
       state.appliedCoupon = action.payload
@@ -99,6 +95,7 @@ export const {
   addToCart,
   removeFromCart,
   removeCourses,
+  updateCartPrices,
   resetCart,
   setAppliedCoupon,
   clearAppliedCoupon,

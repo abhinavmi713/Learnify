@@ -7,14 +7,14 @@ const {
   setCouponActive,
   validateCoupon,
 } = require("../controllers/Coupon")
-const { auth, requirePermission } = require("../middleware/auth")
+const { auth, requirePermission, requireAdmin2FA } = require("../middleware/auth")
 const { audited } = require("../utils/audit")
 const { idempotent } = require("../middleware/idempotency")
 const { setCouponActiveSchema, validateCouponSchema } = require("../validators/miscValidators")
 const { validate } = require("../middleware/validate")
 const { createCouponSchema } = require("../validators/couponValidators")
 
-const manage = requirePermission("coupon:manage")
+const manage = [requireAdmin2FA, requirePermission("coupon:manage")]
 
 router.post(
   "/create",

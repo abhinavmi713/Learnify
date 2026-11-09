@@ -5,6 +5,10 @@ const Course = require("../models/Course")
 const logger = require("../utils/logger")
 const { findRedeemableCoupon, computeDiscount } = require("../utils/coupon")
 const { fulfillOrder, compensateFailedFulfillment, FulfillmentError } = require("../utils/orderFulfillment")
+const PaymentRecord = require("../models/PaymentRecord")
+const User = require("../models/User")
+const { runInTransaction } = require("../utils/transaction")
+const { recordAudit } = require("../utils/audit")
 
 // Fulfils a paid order; if it cannot be delivered (FulfillmentError) the money is
 // already taken, so queue a refund instead of leaving the customer charged for
@@ -18,6 +22,44 @@ async function fulfillOrRefund(args) {
     await compensateFailedFulfillment({ ...args, reason: error.message })
     return { refundQueued: true }
   }
+}
+
+// A refund made outside Learnify (Razorpay's dashboard): Learnify's own refunds
+// carry the order id in their notes and are already recorded by the refund worker.
+// A full refund takes the courses back; a partial one is recorded.
+async function handleExternalRefund(payload) {
+  const refund = payload?.refund?.entity
+  if (!refund?.payment_id) return { ignored: true }
+  if (refund.notes?.orderId) return { ignored: true, reason: "refund made by Learnify" }
+  const record = await PaymentRecord.findOne({ paymentId: refund.payment_id })
+  if (!record || record.externalRefundId === refund.id) return { ignored: true }
+  const paid = Math.round((record.chargedAmount ?? record.amount) * 100)
+  const full = Number(refund.amount) >= paid
+  await runInTransaction(async (session) => {
+    const opts = session ? { session } : {}
+    await PaymentRecord.updateOne(
+      { _id: record._id },
+      { $set: { externalRefundId: refund.id, ...(full ? { status: "refunded", refundedAt: new Date() } : {}) } },
+      opts
+    )
+    if (full && record.courses.length) {
+      await Course.updateMany({ _id: { $in: record.courses } }, { $pull: { studentsEnroled: record.user } }, opts)
+      await User.updateOne({ _id: record.user }, { $pullAll: { courses: record.courses } }, opts)
+    }
+  })
+  await recordAudit(null, { action: "payment.refunded_externally", targetType: "payment", targetId: record.orderId, metadata: { refundId: refund.id, amountPaise: refund.amount, full } })
+  return { recorded: true, enrollmentRemoved: full }
+}
+
+// A chargeback: recorded on the payment and in the audit log for an admin.
+async function handleDispute(payload) {
+  const dispute = payload?.dispute?.entity
+  const paymentId = dispute?.payment_id || payload?.payment?.entity?.id
+  if (!paymentId) return { ignored: true }
+  const record = await PaymentRecord.findOneAndUpdate({ paymentId }, { $set: { disputedAt: new Date() } })
+  if (!record) return { ignored: true }
+  await recordAudit(null, { action: "payment.disputed", outcome: "failure", targetType: "payment", targetId: record.orderId, metadata: { disputeId: dispute?.id, reason: dispute?.reason_code } })
+  return { recorded: true }
 }
 
 // Razorpay caps each order-notes value at 256 chars; 10 ObjectIds (24 chars +
@@ -77,7 +119,7 @@ exports.capturePayment = async (req, res) => {
   let discount = 0
   let appliedCouponCode = null
   if (couponCode) {
-    const { coupon, error } = await findRedeemableCoupon(couponCode)
+    const { coupon, error } = await findRedeemableCoupon(couponCode, userId)
     if (error) return res.status(400).json({ success: false, message: error })
     discount = computeDiscount(coupon, subtotal)
     appliedCouponCode = coupon.code
@@ -203,6 +245,15 @@ exports.razorpayWebhook = async (req, res) => {
   }
 
   const event = req.body?.event
+  if (event === "refund.processed" || event === "payment.dispute.created") {
+    try {
+      const outcome = event === "refund.processed" ? await handleExternalRefund(req.body.payload) : await handleDispute(req.body.payload)
+      return res.status(200).json({ success: true, ...outcome })
+    } catch (error) {
+      logger.error({ err: error.message, event }, "razorpay webhook failed")
+      return res.status(500).json({ success: false })
+    }
+  }
   if (event !== "payment.captured" && event !== "order.paid") {
     return res.status(200).json({ success: true, ignored: true })
   }

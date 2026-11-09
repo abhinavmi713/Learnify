@@ -37,6 +37,13 @@ const store = {
     const hit = local.get(key)
     return hit && hit.expiresAt > Date.now() ? hit.value : null
   },
+  // Extends a key's expiry without changing it (keeps a long request's lock alive).
+  async touch(key, ttlSec) {
+    const redis = getRedis()
+    if (redis) return redis.expire(key, ttlSec)
+    const hit = local.get(key)
+    if (hit) hit.expiresAt = Date.now() + ttlSec * 1000
+  },
   async set(key, value, ttlSec) {
     const redis = getRedis()
     if (redis) return redis.set(key, value, "EX", ttlSec)
@@ -49,7 +56,22 @@ const store = {
   },
 }
 
-const fingerprint = (body) => crypto.createHash("sha256").update(JSON.stringify(body ?? null)).digest("hex")
+// Keys are sorted first, so the same data in a different order is the same request.
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical)
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.keys(value).sort().map((k) => [k, canonical(value[k])]))
+  }
+  return value
+}
+const fingerprint = (body) => crypto.createHash("sha256").update(JSON.stringify(canonical(body ?? null))).digest("hex")
+
+// The in-process store is swept, so expired keys don't pile up without Redis.
+const sweep = setInterval(() => {
+  const now = Date.now()
+  for (const [key, hit] of local) if (hit.expiresAt <= now) local.delete(key)
+}, 60 * 1000)
+sweep.unref?.()
 
 function idempotent({ ttlSec = 24 * 3600, required = false } = {}) {
   const middleware = async (req, res, next) => {
@@ -102,7 +124,12 @@ function idempotent({ ttlSec = 24 * 3600, required = false } = {}) {
       return originalJson(body)
     }
 
+    // A slow handler mustn't outlive its lock, or a retry would run alongside it.
+    const heartbeat = setInterval(() => store.touch(scope, LOCK_TTL_SEC).catch(() => {}), (LOCK_TTL_SEC * 1000) / 3)
+    heartbeat.unref?.()
+    res.on("close", () => clearInterval(heartbeat))
     res.on("finish", () => {
+      clearInterval(heartbeat)
       const done =
         res.statusCode >= 500 || captured === undefined
           ? store.del(scope)

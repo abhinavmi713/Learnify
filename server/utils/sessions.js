@@ -20,6 +20,11 @@ const FAMILY_TTL_MS = () => Number(process.env.SESSION_MAX_DAYS || 30) * 24 * 36
 // Two tabs refreshing at the same moment both present the same token; the
 // second one inside this window is told to retry instead of being treated as theft.
 const CONCURRENT_GRACE_MS = 10 * 1000
+// After that, an old token may still be exchanged if the token it was replaced
+// by has never been used AND the request comes from the same IP address and
+// browser that received that replacement: the response was lost on the way.
+// From anywhere else it's treated as theft, as before.
+const LOST_RESPONSE_WINDOW_MS = 2 * 60 * 1000
 
 const COOKIE = "refreshToken"
 const COOKIE_PATH = "/api/v1/auth"
@@ -36,12 +41,9 @@ const hash = (raw) => crypto.createHash("sha256").update(raw).digest("hex")
 
 function signAccessToken(user) {
   return jwt.sign(
-    {
-      email: user.email,
-      id: String(user._id),
-      accountType: user.accountType,
-      tokenVersion: user.tokenVersion || 0,
-    },
+    // Only what verification needs. The role is read from the database on every
+    // request, and the payload is readable by anyone, so no email either.
+    { id: String(user._id), tokenVersion: user.tokenVersion || 0 },
     process.env.JWT_SECRET,
     { expiresIn: ACCESS_TTL(), jwtid: crypto.randomUUID(), audience: ACCESS_AUDIENCE }
   )
@@ -102,11 +104,15 @@ async function revokeFamily(family, reason) {
   )
 }
 
+// Loaded lazily: realtime pulls in the auth middleware.
+const realtime = () => require("../realtime")
+
 async function revokeAllSessions(userId, reason) {
   await RefreshToken.updateMany(
     { user: userId, revokedAt: null },
     { $set: { revokedAt: new Date(), revokedReason: reason } }
   )
+  realtime().disconnectUser(String(userId))
 }
 
 // Ends every session except the one presenting this refresh cookie.
@@ -140,12 +146,35 @@ async function rotate(req, res) {
     if (used?.usedAt && now - used.usedAt < CONCURRENT_GRACE_MS && !used.revokedAt) {
       throw new SessionError(409, "Session was just refreshed by another request", "concurrent")
     }
+    if (used?.usedAt && now - used.usedAt < LOST_RESPONSE_WINDOW_MS && !used.revokedAt) {
+      const successor = await RefreshToken.findOneAndUpdate(
+        {
+          family: doc.family,
+          createdAt: { $gte: used.usedAt },
+          usedAt: null,
+          revokedAt: null,
+          ip: req?.ip || "",
+          userAgent: String(req?.get?.("user-agent") || "").slice(0, 300),
+        },
+        { $set: { revokedAt: now, revokedReason: "superseded" } },
+        { sort: { createdAt: -1 } }
+      )
+      if (successor) {
+        const user = await User.findById(doc.user)
+        if (user && user.active !== false && (user.tokenVersion || 0) === doc.tokenVersion) {
+          const next = await issueRefreshToken(user, req, { family: doc.family, familyExpiresAt: doc.familyExpiresAt })
+          setRefreshCookie(res, next)
+          return { user, accessToken: signAccessToken(user) }
+        }
+      }
+    }
     // A used token came back: someone has a copy. End every session of this login.
     await revokeFamily(doc.family, "reuse_detected")
     // Also end the access tokens already handed out, which would otherwise keep
     // working until they expire. They carry no family, so this signs out every
     // device, the safe choice when a token is known to be stolen.
     await User.updateOne({ _id: doc.user }, { $inc: { tokenVersion: 1 } })
+    realtime().disconnectUser(String(doc.user))
     await recordAudit(req, {
       action: "auth.refresh_reuse_detected",
       outcome: "failure",
@@ -169,7 +198,10 @@ async function rotate(req, res) {
 
 // Ends the current session: the access token (by jti) and its refresh family.
 async function endSession(req, res) {
-  if (req.user) await revokeToken(req.user)
+  if (req.user) {
+    await revokeToken(req.user)
+    realtime().disconnectSession(req.user.jti)
+  }
   const raw = readRefreshCookie(req)
   if (raw) {
     const doc = await RefreshToken.findOne({ tokenHash: hash(raw) })

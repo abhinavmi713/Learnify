@@ -89,6 +89,11 @@ gauge("learnify_outbox_oldest_pending_age_seconds", "Age of the oldest unpublish
   g.set(oldest ? (Date.now() - new Date(oldest.createdAt).getTime()) / 1000 : 0)
 })
 
+gauge("learnify_outbox_failed_events", "Events the relay gave up on (need attention)", [], async (g) => {
+  const OutboxEvent = require("../models/OutboxEvent")
+  g.set(await OutboxEvent.countDocuments({ status: "failed" }))
+})
+
 gauge("learnify_circuit_breaker_open", "1 when a circuit breaker is open (failing fast)", ["breaker"], async (g) => {
   const { breakerStates } = require("./resilience")
   g.reset()

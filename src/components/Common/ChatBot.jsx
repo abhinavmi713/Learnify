@@ -4,6 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 
 import { apiConnector } from "../../services/apiConnector";
 import { chatbotEndpoints } from "../../services/apis";
+import ChatMarkdown from "./ChatMarkdown"
 
 const { CHATBOT_API } = chatbotEndpoints;
 
@@ -110,13 +111,13 @@ export default function ChatBot() {
                 className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
               >
                 <div
-                  className={`max-w-xs px-3 py-2 rounded-lg text-sm whitespace-pre-line ${
+                  className={`max-w-xs px-3 py-2 rounded-lg text-sm ${msg.role === "user" ? "whitespace-pre-line" : ""} ${
                     msg.role === "user"
                       ? "bg-yellow-50 text-richblack-900 rounded-br-none"
                       : "bg-richblack-800 text-richblack-5 rounded-bl-none shadow-sm border border-richblack-700"
                   }`}
                 >
-                  {msg.text}
+                  {msg.role === "user" ? msg.text : <ChatMarkdown text={msg.text} />}
                 </div>
                 {msg.grounded && (
                   <span className="mt-1 text-[11px] font-semibold text-caribbeangreen-100">

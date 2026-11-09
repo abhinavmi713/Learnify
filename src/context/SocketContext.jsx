@@ -30,7 +30,13 @@ export function SocketProvider({ children }) {
       reconnectionDelayMax: 10000,
     })
     s.on("connect", () => setConnected(true))
-    s.on("disconnect", () => setConnected(false))
+    s.on("disconnect", (reason) => {
+      setConnected(false)
+      // The server ends sockets when a session is revoked. If this tab is still
+      // signed in (another session was revoked, or its token was replaced), join
+      // again with the current token; otherwise stay disconnected.
+      if (reason === "io server disconnect" && tokenRef.current) setTimeout(() => s.connect(), 1000)
+    })
     // An expired access token is refreshed by the next API call; retry a few
     // times before giving up on a session that is really over.
     let authFailures = 0

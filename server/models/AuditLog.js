@@ -1,6 +1,6 @@
 const mongoose = require("mongoose")
 
-// Append-only record of security-relevant actions: who did what, to what, from
+// Tamper-resistant record of security-relevant actions: who did what, to what, from
 // where, and whether it succeeded. Written by utils/audit.js; read by admins.
 const auditLogSchema = new mongoose.Schema(
   {
@@ -20,6 +20,9 @@ const auditLogSchema = new mongoose.Schema(
 )
 
 auditLogSchema.index({ createdAt: -1 })
+// Entries hold emails and IP addresses, so they expire (AUDIT_RETENTION_DAYS,
+// default 365). The database removes them; the application still can't.
+auditLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: Number(process.env.AUDIT_RETENTION_DAYS || 365) * 24 * 3600 })
 // The admin screen filters by these and sorts newest first by _id.
 auditLogSchema.index({ actorEmail: 1, _id: -1 })
 auditLogSchema.index({ action: 1, _id: -1 })
