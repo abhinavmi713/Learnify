@@ -44,7 +44,8 @@ function CourseDetails() {
         console.log("Could not fetch Course Details")
       }
     })()
-  }, [courseId])
+    // Refetch after signing in: owners and enrolled students may see unpublished courses.
+  }, [courseId, token])
 
   // console.log("response: ", response)
 
