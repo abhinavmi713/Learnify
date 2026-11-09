@@ -15,4 +15,7 @@ const sectionSchema = new mongoose.Schema({
 });
 
 // Export the Section model
+// Which section holds a lecture.
+sectionSchema.index({ subSection: 1 })
+
 module.exports = mongoose.model("Section", sectionSchema);

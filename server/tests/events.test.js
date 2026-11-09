@@ -93,7 +93,7 @@ describe("outbox relay + in-process consumers", () => {
 
   test("signup writes the user and a user.registered event together; the welcome email follows", async () => {
     await request(app).post("/api/v1/auth/sendotp").send({ email: "ana@example.com" })
-    const otp = (await require("../models/OTP").findOne({ email: "ana@example.com" })).otp
+    const otp = (await OutboxEvent.findOne({ type: "otp.requested", "payload.email": "ana@example.com" })).payload.otp
     await drain() // delivers the OTP email
     mockSend.mockClear()
 

@@ -1,11 +1,9 @@
 const logger = require("../utils/logger")
 
-// Catches anything that reaches Express without being handled by a route's
-// own try/catch — malformed JSON bodies, errors thrown synchronously, or
-// anything passed to next(err). Every controller already handles its own
-// errors and responds with a safe message; this is the last-resort net so
-// an unexpected failure never leaks a raw stack trace or Mongoose error
-// string to the client.
+// Catches anything a route doesn't handle itself: malformed JSON bodies, thrown
+// errors, anything passed to next(err), and rejected async handlers (through
+// express-async-errors in app.js). It answers with a safe message, so an
+// unexpected failure never leaks a stack trace or database error to the client.
 function errorHandler(err, req, res, next) {
   if (res.headersSent) {
     return next(err)

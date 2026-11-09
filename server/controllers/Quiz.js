@@ -117,7 +117,7 @@ Respond with ONLY a JSON array (no markdown fences, no prose before or after), i
     console.error(error)
     return res.status(500).json({
       success: false,
-      message: error.message || "Failed to generate quiz draft",
+      message: "Something went wrong. Please try again.",
     })
   }
 }

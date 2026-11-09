@@ -24,6 +24,14 @@ async function authorizeSectionOwner(req, res, sectionId) {
   return course
 }
 
+// Owning a section says nothing about a lecture id sent alongside it, so check that
+// the lecture is really in that section. Sends a 404 and returns false if not.
+async function lectureInSection(res, subSectionId, sectionId) {
+  if (await Section.exists({ _id: sectionId, subSection: subSectionId })) return true
+  res.status(404).json({ success: false, message: "SubSection not found" })
+  return false
+}
+
 // Create a new sub-section for a given section
 exports.createSubSection = async (req, res) => {
   try {
@@ -79,7 +87,6 @@ exports.createSubSection = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: error.message,
     })
   }
 }
@@ -96,6 +103,7 @@ exports.updateSubSection = async (req, res) => {
     }
 
     if (!(await authorizeSectionOwner(req, res, sectionId))) return
+    if (!(await lectureInSection(res, subSectionId, sectionId))) return
 
     const subSection = await SubSection.findById(subSectionId)
 
@@ -167,6 +175,7 @@ exports.deleteSubSection = async (req, res) => {
     }
 
     if (!(await authorizeSectionOwner(req, res, sectionId))) return
+    if (!(await lectureInSection(res, subSectionId, sectionId))) return
 
     await Section.findByIdAndUpdate(
       { _id: sectionId },

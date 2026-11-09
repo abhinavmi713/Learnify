@@ -47,7 +47,6 @@ export const learningPathEndpoints = {
 export const studentEndpoints = {
   COURSE_PAYMENT_API: BASE_URL + "/api/v1/payment/capturePayment",
   COURSE_VERIFY_API: BASE_URL + "/api/v1/payment/verifyPayment",
-  SEND_PAYMENT_SUCCESS_EMAIL_API: BASE_URL + "/api/v1/payment/sendPaymentSuccessEmail",
 };
 
 // COURSE ENDPOINTS

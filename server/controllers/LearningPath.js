@@ -94,6 +94,7 @@ exports.getLearningPathDetails = async (req, res) => {
     }
     const path = await LearningPath.findById(pathId).populate({
       path: "courses",
+      match: { status: "Published", deletedAt: null },
       select: "courseName courseDescription thumbnail price instructor",
       populate: { path: "instructor", select: "firstName lastName" },
     })

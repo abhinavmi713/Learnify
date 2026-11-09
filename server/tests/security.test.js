@@ -180,7 +180,7 @@ describe("two-factor authentication", () => {
     const enabled = await request(app)
       .post("/api/v1/auth/2fa/enable")
       .set(bearer(token))
-      .send({ code: totp.codeForStep(secret, totp.stepAt()) })
+      .send({ code: totp.codeForStep(secret, totp.stepAt()), password: "Password123" })
     expect(enabled.status).toBe(200)
     return { token, secret, recoveryCodes: enabled.body.data.recoveryCodes }
   }

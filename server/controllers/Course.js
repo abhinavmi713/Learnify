@@ -1,5 +1,6 @@
 const Course = require("../models/Course")
 const { invalidateCatalogCache } = require("../utils/cache")
+const { MAX_PAGE } = require("../utils/pagination")
 const Category = require("../models/Category")
 const Section = require("../models/Section")
 const SubSection = require("../models/Subsection")
@@ -149,7 +150,6 @@ exports.createCourse = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to create course",
-      error: error.message,
     })
   }
 }
@@ -256,7 +256,6 @@ exports.editCourse = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: error.message,
     })
   }
 }
@@ -305,7 +304,7 @@ Respond with ONLY a JSON object (no markdown fences, no prose before or after), 
     console.error(error)
     return res.status(500).json({
       success: false,
-      message: error.message || "Failed to generate course description",
+      message: "Something went wrong. Please try again.",
     })
   }
 }
@@ -327,6 +326,7 @@ exports.getRecommendedCourses = async (req, res) => {
 
     const baseMatch = {
       status: "Published",
+      deletedAt: null,
       _id: { $nin: enrolledIds },
     }
 
@@ -364,7 +364,7 @@ exports.getRecommendedCourses = async (req, res) => {
     // Not enough (or no) overlap-based matches yet — fill with newest published courses.
     if (recommended.length < 4) {
       const excludeIds = [...enrolledIds, ...recommended.map((c) => c._id)]
-      const fallback = await Course.find({ status: "Published", _id: { $nin: excludeIds } })
+      const fallback = await Course.find({ status: "Published", deletedAt: null, _id: { $nin: excludeIds } })
         .sort({ createdAt: -1 })
         .limit(8 - recommended.length)
         .populate({ path: "instructor", select: "firstName lastName" })
@@ -378,7 +378,6 @@ exports.getRecommendedCourses = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch recommendations",
-      error: error.message,
     })
   }
 }
@@ -443,62 +442,19 @@ exports.getAllCourses = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: `Can't Fetch Course Data`,
-      error: error.message,
     })
   }
 }
 // Get One Single Course Details
-// exports.getCourseDetails = async (req, res) => {
-//   try {
-//     const { courseId } = req.body
-//     const courseDetails = await Course.findOne({
-//       _id: courseId,
-//     })
-//       .populate({
-//         path: "instructor",
-//         populate: {
-//           path: "additionalDetails",
-//         },
-//       })
-//       .populate("category")
-//       .populate("ratingAndReviews")
-//       .populate({
-//         path: "courseContent",
-//         populate: {
-//           path: "subSection",
-//         },
-//       })
-//       .exec()
-//     // console.log(
-//     //   "###################################### course details : ",
-//     //   courseDetails,
-//     //   courseId
-//     // );
-//     if (!courseDetails || !courseDetails.length) {
-//       return res.status(400).json({
-//         success: false,
-//         message: `Could not find course with id: ${courseId}`,
-//       })
-//     }
+function canReadCourse(course, user) {
+  if (course.status === "Published") return true
+  if (!user) return false
+  if (user.accountType === "Admin") return true
+  const id = String(user.id)
+  if (String(course.instructor?._id || course.instructor) === id) return true
+  return (course.studentsEnroled || []).some((s) => String(s) === id)
+}
 
-//     if (courseDetails.status === "Draft") {
-//       return res.status(403).json({
-//         success: false,
-//         message: `Accessing a draft course is forbidden`,
-//       })
-//     }
-
-//     return res.status(200).json({
-//       success: true,
-//       data: courseDetails,
-//     })
-//   } catch (error) {
-//     return res.status(500).json({
-//       success: false,
-//       message: error.message,
-//     })
-//   }
-// }
 exports.getCourseDetails = async (req, res) => {
   try {
     const { courseId } = req.body
@@ -524,19 +480,14 @@ exports.getCourseDetails = async (req, res) => {
       })
       .exec()
 
-    if (!courseDetails) {
+    // Unpublished courses answer exactly like missing ones, except to the people
+    // entitled to see them.
+    if (!courseDetails || !canReadCourse(courseDetails, req.user)) {
       return res.status(400).json({
         success: false,
         message: `Could not find course with id: ${courseId}`,
       })
     }
-
-    // if (courseDetails.status === "Draft") {
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: `Accessing a draft course is forbidden`,
-    //   });
-    // }
 
     let totalDurationInSeconds = 0
     courseDetails.courseContent.forEach((content) => {
@@ -556,9 +507,10 @@ exports.getCourseDetails = async (req, res) => {
       },
     })
   } catch (error) {
+    console.error(error)
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Something went wrong. Please try again.",
     })
   }
 }
@@ -629,9 +581,10 @@ exports.getFullCourseDetails = async (req, res) => {
       },
     })
   } catch (error) {
+    console.error(error)
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Something went wrong. Please try again.",
     })
   }
 }
@@ -658,7 +611,6 @@ exports.getInstructorCourses = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to retrieve instructor courses",
-      error: error.message,
     })
   }
 }
@@ -668,7 +620,7 @@ exports.getInstructorCourses = async (req, res) => {
 // appearing in public discovery and the instructor's active course list.
 // A permanent hard-delete with no recovery window was the previous
 // behavior; this trades that for the ability to undo an accidental click
-// (currently a manual `deletedAt: null` update — there's no restore UI yet).
+// (admins can restore a course from the admin dashboard).
 exports.deleteCourse = async (req, res) => {
   try {
     const { courseId } = req.body
@@ -700,7 +652,6 @@ exports.deleteCourse = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Server error",
-      error: error.message,
     })
   }
 }
@@ -812,7 +763,7 @@ async function mongoSearchCourses(req, res) {
       }
     }
 
-    const pageNum = Math.max(1, parseInt(page, 10) || 1)
+    const pageNum = Math.min(MAX_PAGE, Math.max(1, parseInt(page, 10) || 1))
     const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 12))
     const sortStage = SORT_OPTIONS[sortBy] || SORT_OPTIONS.newest
 
@@ -879,7 +830,6 @@ async function mongoSearchCourses(req, res) {
     return res.status(500).json({
       success: false,
       message: "Failed to search courses",
-      error: error.message,
     })
   }
 }

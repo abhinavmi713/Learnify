@@ -1,4 +1,5 @@
 const mongoose = require("mongoose")
+const logger = require("./logger")
 
 // MongoDB reports this when the server is a standalone (not a replica set),
 // where multi-document transactions do not exist.
@@ -11,8 +12,8 @@ const isTransactionUnsupported = (error) =>
 // event written inside it is for.
 //
 // On a standalone MongoDB (a developer's local mongod without a replica set) it
-// degrades to running `work(null)` without a session so the app still works;
-// production and docker-compose run a replica set, where it is truly atomic.
+// warns and runs `work(null)` without a session, so the app still works, but
+// nothing is atomic. Production refuses: losing atomicity there must be loud.
 async function runInTransaction(work) {
   const session = await mongoose.startSession()
   try {
@@ -22,7 +23,11 @@ async function runInTransaction(work) {
     })
     return result
   } catch (error) {
-    if (isTransactionUnsupported(error)) return work(null)
+    if (isTransactionUnsupported(error)) {
+      if (process.env.NODE_ENV === "production") throw error
+      logger.warn("MongoDB is not a replica set: running WITHOUT a transaction")
+      return work(null)
+    }
     throw error
   } finally {
     await session.endSession()

@@ -7,9 +7,11 @@ const RefreshToken = require("../models/RefreshToken")
 const totp = require("../utils/totp")
 const secretBox = require("../utils/secretBox")
 const { recordAudit } = require("../utils/audit")
-const { rotate, revokeAllSessions, listSessions, readRefreshCookie, clearRefreshCookie, SessionError } = require("../utils/sessions")
+const { rotate, revokeAllSessions, revokeOtherSessions, listSessions, readRefreshCookie, clearRefreshCookie, SessionError } = require("../utils/sessions")
 const { revokeToken } = require("../utils/tokenRevocation")
 const { completeLogin } = require("./Auth")
+const { notifyUser } = require("../utils/notify")
+const { ALGORITHM, TWO_FACTOR_AUDIENCE } = require("../config/tokens")
 
 const RECOVERY_CODES = 8
 const MAX_FAILED_ATTEMPTS = 5
@@ -92,6 +94,11 @@ exports.setupTwoFactor = async (req, res) => {
 // POST /auth/2fa/enable { code }: confirms the pending secret, returns recovery codes once.
 exports.enableTwoFactor = async (req, res) => {
   const user = await withSecrets(req.user.id)
+  // A stolen session or unattended browser must not be able to lock out the owner.
+  if (!(await bcrypt.compare(String(req.body.password || ""), user.password))) {
+    await recordAudit(req, { action: "auth.2fa_enable", outcome: "failure", metadata: { reason: "bad_password" } })
+    return res.status(400).json({ success: false, message: "That password is not correct" })
+  }
   if (!user.twoFactor?.pendingSecret) return res.status(400).json({ success: false, message: "Start the setup first" })
 
   const step = totp.verify(secretBox.open(user.twoFactor.pendingSecret), req.body.code)
@@ -108,7 +115,10 @@ exports.enableTwoFactor = async (req, res) => {
   user.twoFactor.enabledAt = new Date()
   user.twoFactorEnabled = true
   await user.save()
+  // Someone turning this on may suspect a compromise, so end other sessions.
+  await revokeOtherSessions(user._id, readRefreshCookie(req), "2fa_enabled")
   await recordAudit(req, { action: "auth.2fa_enable" })
+  await notifyUser(user._id, "Two-factor authentication was turned on. Other devices were signed out.", "/dashboard/settings").catch(() => {})
   return res.status(200).json({ success: true, message: "Two-factor authentication is on", data: { recoveryCodes } })
 }
 
@@ -147,6 +157,7 @@ exports.disableTwoFactor = async (req, res) => {
     { $set: { twoFactorEnabled: false, twoFactor: { secret: null, pendingSecret: null, lastUsedStep: 0, recoveryCodes: [], enabledAt: null } } }
   )
   await recordAudit(req, { action: "auth.2fa_disable" })
+  await notifyUser(user._id, "Two-factor authentication was turned off.", "/dashboard/settings").catch(() => {})
   return res.status(200).json({ success: true, message: "Two-factor authentication is off" })
 }
 
@@ -154,7 +165,10 @@ exports.disableTwoFactor = async (req, res) => {
 exports.loginTwoFactor = async (req, res) => {
   let claims
   try {
-    claims = jwt.verify(String(req.body.challenge || ""), process.env.JWT_SECRET)
+    claims = jwt.verify(String(req.body.challenge || ""), process.env.JWT_SECRET, {
+      algorithms: [ALGORITHM],
+      audience: TWO_FACTOR_AUDIENCE,
+    })
   } catch (error) {
     claims = null
   }

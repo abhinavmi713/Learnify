@@ -56,11 +56,12 @@ const {
   updateWatchPosition,
 } = require("../controllers/courseProgress")
 // Importing Middlewares
-const { auth, isInstructor, isStudent, requirePermission } = require("../middleware/auth")
+const { optionalAuth, auth, isInstructor, isStudent, requirePermission } = require("../middleware/auth")
 const { audited } = require("../utils/audit")
 const { idempotent } = require("../middleware/idempotency")
 const { aiLimiter } = require("../middleware/rateLimiter")
 const { cacheResponse } = require("../utils/cache")
+const { uploadImage, uploadVideo } = require("../middleware/upload")
 const { emitContentChanged } = require("../utils/contentEvents")
 const { courseIdSchema } = require("../validators/miscValidators")
 const { validate } = require("../middleware/validate")
@@ -75,9 +76,9 @@ const {
 // ********************************************************************************************************
 
 // Courses can Only be Created by Instructors
-router.post("/createCourse", auth, isInstructor, idempotent(), validate(createCourseSchema), createCourse)
+router.post("/createCourse", auth, isInstructor, uploadImage, idempotent(), validate(createCourseSchema), createCourse)
 // Edit Course routes
-router.post("/editCourse", auth, isInstructor, emitContentChanged(), validate(editCourseSchema), editCourse)
+router.post("/editCourse", auth, isInstructor, uploadImage, emitContentChanged(), validate(editCourseSchema), editCourse)
 //Add a Section to a Course
 router.post("/addSection", auth, isInstructor, emitContentChanged(), validate(addSectionSchema), createSection)
 // Update a Section
@@ -85,18 +86,18 @@ router.post("/updateSection", auth, isInstructor, emitContentChanged(), validate
 // Delete a Section
 router.post("/deleteSection", auth, isInstructor, emitContentChanged(), validate(deleteSectionSchema), deleteSection)
 // Edit Sub Section
-router.post("/updateSubSection", auth, isInstructor, emitContentChanged(), validate(updateSubSectionSchema), updateSubSection)
+router.post("/updateSubSection", auth, isInstructor, uploadVideo, emitContentChanged(), validate(updateSubSectionSchema), updateSubSection)
 // Delete Sub Section
 router.post("/deleteSubSection", auth, isInstructor, emitContentChanged(), validate(deleteSubSectionSchema), deleteSubSection)
 // Add a Sub Section to a Section
-router.post("/addSubSection", auth, isInstructor, emitContentChanged(), validate(addSubSectionSchema), createSubSection)
+router.post("/addSubSection", auth, isInstructor, uploadVideo, emitContentChanged(), validate(addSubSectionSchema), createSubSection)
 // Signed params for a direct browser -> Cloudinary video upload
 router.post("/uploadSignature", auth, isInstructor, getUploadSignature)
 // Get all Courses Under a Specific Instructor
 router.get("/getInstructorCourses", auth, isInstructor, getInstructorCourses)
 // Get all Registered Courses (cached briefly — this list changes rarely
 // relative to how often it's fetched)
-router.get("/getAllCourses", cacheResponse(60), getAllCourses)
+router.get("/getAllCourses", cacheResponse(60, { params: ["limit", "before"] }), getAllCourses)
 // Search & filter courses (text search, category, price range, rating, sort, pagination)
 router.post("/searchCourses", searchCourses)
 // Search-box autocomplete: GET /suggest?q=jav
@@ -106,7 +107,7 @@ router.post("/generateDescription", auth, isInstructor, aiLimiter, generateCours
 // Content-based "recommended for you" courses for a logged-in student
 router.get("/recommendations", auth, isStudent, getRecommendedCourses)
 // Get Details for a Specific Courses
-router.post("/getCourseDetails", validate(courseIdSchema), getCourseDetails)
+router.post("/getCourseDetails", optionalAuth, validate(courseIdSchema), getCourseDetails)
 // Get Details for a Specific Courses
 router.post("/getFullCourseDetails", auth, validate(courseIdSchema), getFullCourseDetails)
 // To Update Course Progress
@@ -124,8 +125,8 @@ const manageCategories = requirePermission("category:manage")
 router.post("/createCategory", auth, manageCategories, audited("category.create", (req) => ({ targetType: "category", metadata: { name: req.body?.name } })), validate(createCategorySchema), createCategory)
 router.post("/updateCategory", auth, manageCategories, audited("category.update", (req) => ({ targetType: "category", targetId: req.body?.categoryId })), validate(updateCategorySchema), updateCategory)
 router.post("/deleteCategory", auth, manageCategories, audited("category.delete", (req) => ({ targetType: "category", targetId: req.body?.categoryId })), validate(categoryIdSchema), deleteCategory)
-router.get("/showAllCategories", cacheResponse(60), showAllCategories)
-router.post("/getCategoryPageDetails", categoryPageDetails)
+router.get("/showAllCategories", cacheResponse(60, { params: [] }), showAllCategories)
+router.post("/getCategoryPageDetails", validate(categoryIdSchema), categoryPageDetails)
 
 // ********************************************************************************************************
 //                                      Rating and Review

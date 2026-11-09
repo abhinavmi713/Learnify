@@ -41,18 +41,23 @@ replay of R1 later ──▶ "reuse detected": every token in F revoked, audit e
 - A code is accepted once: the last used step is stored and updated with a conditional write, so two
   racing requests with the same code cannot both succeed.
 - 8 single-use recovery codes, stored as hashes, shown once.
-- Wrong codes count towards the same account lockout as wrong passwords. Disabling needs password + code.
+- Wrong codes count towards the same account lockout as wrong passwords. Enabling needs the password and a code,
+  and signs out other sessions. Disabling needs password + code.
+- Access tokens and challenges have different audiences (`config/tokens.js`), so one can't be used as the other.
 
 ## Authorization (RBAC)
 
-`config/permissions.js` maps roles to permissions; routes ask for permissions
-(`requirePermission("coupon:manage")`), so what a role may do is decided in one table. The role is read from
+`config/permissions.js` maps roles to permissions. Admin, coupon, payment and webhook routes ask for permissions
+(`requirePermission("coupon:manage")`), so what a role may do is decided in one table; other routes still check
+the role directly (`isInstructor`, `isStudent`). The role is read from
 the database on every request, not from the token, so a demotion applies immediately. Missing permission is
 `403` (we know who you are), missing/invalid login is `401`.
 
 ## Audit log
 
-`AuditLog` is append-only: Mongoose hooks reject updates and deletes. Entries record action, outcome, actor
+`AuditLog` resists tampering by ordinary application code: Mongoose hooks reject updates and deletes. `bulkWrite`
+and direct database access can still change entries, so it isn't truly append-only without a restricted database
+role or shipping entries elsewhere. Entries record action, outcome, actor
 (id, role, email), target, metadata, IP, user agent and request id.
 
 Recorded: logins (success/failure, reason, lockout), 2FA enable/disable/failed codes, recovery-code use,

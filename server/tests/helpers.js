@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs")
 const jwt = require("jsonwebtoken")
 const User = require("../models/User")
 const Profile = require("../models/Profile")
+const { ACCESS_AUDIENCE } = require("../config/tokens")
 
 async function createUser({ email, password = "Password123", accountType = "Student", active = true }) {
   const profile = await Profile.create({})
@@ -21,6 +22,7 @@ async function createUser({ email, password = "Password123", accountType = "Stud
 function tokenFor(user) {
   return jwt.sign({ email: user.email, id: user._id.toString() }, process.env.JWT_SECRET, {
     expiresIn: "1h",
+    audience: ACCESS_AUDIENCE,
   })
 }
 

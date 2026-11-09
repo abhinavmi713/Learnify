@@ -92,7 +92,15 @@ router.post("/2fa/disable", auth, validate(disableTwoFactorSchema), disableTwoFa
 router.post("/signup", authLimiter, validate(signupSchema), signup)
 
 // Route for sending OTP to the user's email
-router.post("/sendotp", authLimiter, validate(sendOtpSchema), sendotp)
+// Each new code gets a fresh set of guesses, so limit new codes per address too.
+const otpBucket = tokenBucketLimiter({
+  name: "otp",
+  capacity: 5,
+  refillPerSec: 1 / 60,
+  keyFn: (req) => String(req.body?.email || "").trim().toLowerCase(),
+  message: "Too many codes requested for this email. Please wait a little before trying again.",
+})
+router.post("/sendotp", authLimiter, otpBucket, validate(sendOtpSchema), sendotp)
 
 // Route for Changing the password
 router.post("/changepassword", auth, validate(changePasswordSchema), changePassword)

@@ -36,7 +36,8 @@ exports.getPendingCourses = async (req, res) => {
       .status(200)
       .json({ success: true, data: courses, pagination: buildPaginationMeta(total, page, limit) })
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message })
+    console.error(error)
+    return res.status(500).json({ success: false, message: "Something went wrong. Please try again." })
   }
 }
 
@@ -73,7 +74,8 @@ exports.approveCourse = async (req, res) => {
       data: course,
     })
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message })
+    console.error(error)
+    return res.status(500).json({ success: false, message: "Something went wrong. Please try again." })
   }
 }
 
@@ -109,7 +111,8 @@ exports.rejectCourse = async (req, res) => {
       data: course,
     })
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message })
+    console.error(error)
+    return res.status(500).json({ success: false, message: "Something went wrong. Please try again." })
   }
 }
 
@@ -133,7 +136,8 @@ exports.getArchivedCourses = async (req, res) => {
       .status(200)
       .json({ success: true, data: courses, pagination: buildPaginationMeta(total, page, limit) })
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message })
+    console.error(error)
+    return res.status(500).json({ success: false, message: "Something went wrong. Please try again." })
   }
 }
 
@@ -158,7 +162,8 @@ exports.restoreCourse = async (req, res) => {
 
     return res.status(200).json({ success: true, message: "Course restored", data: course })
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message })
+    console.error(error)
+    return res.status(500).json({ success: false, message: "Something went wrong. Please try again." })
   }
 }
 
@@ -194,7 +199,8 @@ exports.getAllUsersAdmin = async (req, res) => {
       .status(200)
       .json({ success: true, data: users, pagination: buildPaginationMeta(total, page, limit) })
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message })
+    console.error(error)
+    return res.status(500).json({ success: false, message: "Something went wrong. Please try again." })
   }
 }
 
@@ -228,7 +234,8 @@ exports.setUserActive = async (req, res) => {
       data: user,
     })
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message })
+    console.error(error)
+    return res.status(500).json({ success: false, message: "Something went wrong. Please try again." })
   }
 }
 
@@ -287,7 +294,7 @@ exports.getPlatformAnalytics = async (req, res) => {
     })
   } catch (error) {
     console.error(error)
-    return res.status(500).json({ success: false, message: error.message })
+    return res.status(500).json({ success: false, message: "Something went wrong. Please try again." })
   }
 }
 

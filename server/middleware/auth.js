@@ -4,6 +4,7 @@ const dotenv = require("dotenv");
 const User = require("../models/User");
 const { isRevoked } = require("../utils/tokenRevocation");
 const { can } = require("../config/permissions");
+const { ALGORITHM, ACCESS_AUDIENCE } = require("../config/tokens");
 // Configuring dotenv to load environment variables from .env file
 dotenv.config();
 
@@ -22,7 +23,7 @@ async function verifyAccessToken(token) {
 
 	let decode;
 	try {
-		decode = jwt.verify(token, process.env.JWT_SECRET);
+		decode = jwt.verify(token, process.env.JWT_SECRET, { algorithms: [ALGORITHM], audience: ACCESS_AUDIENCE });
 	} catch (error) {
 		throw new AuthError(401, "token is invalid");
 	}

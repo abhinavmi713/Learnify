@@ -24,7 +24,8 @@ const notificationSchema = new mongoose.Schema(
 )
 
 // Feed (newest first) and unread badge for one user.
-notificationSchema.index({ user: 1, createdAt: -1 })
+// _id breaks ties in the feed's sort, so it must be in the index.
+notificationSchema.index({ user: 1, createdAt: -1, _id: -1 })
 notificationSchema.index({ user: 1, read: 1 })
 
 module.exports = mongoose.model("Notification", notificationSchema)

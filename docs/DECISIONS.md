@@ -94,7 +94,8 @@ not an outage. The cost is two code paths for some features; both are covered by
 
 ## 8. Permissions, not roles, in routes
 
-Routes ask for permissions (`coupon:manage`). One table maps roles to permissions, and the role is read from
+Admin, coupon, payment and webhook routes ask for permissions (`coupon:manage`); other routes still check the
+role directly. One table maps roles to permissions, and the role is read from
 the database on every request, so a demotion applies immediately. Failed authorization returns `403`, not
 `401`, so clients do not mistake it for an expired session.
 

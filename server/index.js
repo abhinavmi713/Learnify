@@ -76,8 +76,9 @@ async function shutdown(signal) {
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
 
-// An unhandled rejection or exception leaves the process in an unknown state:
-// log it with full detail and exit so the supervisor restarts a clean one.
+// An uncaught exception leaves the process in an unknown state, so log it and
+// exit for the supervisor to restart a clean one. A stray rejection is usually
+// one failed operation, so it's logged and the server keeps running.
 process.on("unhandledRejection", (reason) => {
   logger.error({ err: reason }, "unhandled promise rejection");
 });

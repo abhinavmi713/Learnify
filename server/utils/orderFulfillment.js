@@ -48,6 +48,20 @@ async function enrollUserInCourses(courseIds, userId, session = null) {
   return newlyEnrolled
 }
 
+const roundMoney = (value) => Math.round(value * 100) / 100
+
+// The part of what was paid that belongs to undelivered courses, in proportion to
+// list prices (a coupon reduced every course in the order equally).
+async function undeliveredShare(amount, courseIds, undelivered, opts) {
+  if (!amount) return 0
+  const courses = await Course.find({ _id: { $in: courseIds } }, "price", opts).lean()
+  const prices = new Map(courses.map((c) => [String(c._id), c.price || 0]))
+  const sum = (ids) => ids.reduce((total, id) => total + (prices.get(String(id)) || 0), 0)
+  const listTotal = sum(courseIds)
+  const fraction = listTotal > 0 ? sum(undelivered) / listTotal : undelivered.length / courseIds.length
+  return Math.min(amount, roundMoney(amount * fraction))
+}
+
 const isDuplicateOrder = (error) =>
   error?.code === 11000 && (error.keyPattern?.orderId || /orderId/.test(error.message || ""))
 
@@ -61,21 +75,24 @@ const isDuplicateOrder = (error) =>
 // by a worker from the outbox event, never inside this request.
 //
 // Returns { alreadyProcessed } so callers can tell a repeat (browser callback
-// followed by the Razorpay webhook) apart. Throws FulfillmentError if nothing in
-// the order can be delivered.
+// followed by the Razorpay webhook) apart. Throws FulfillmentError if the order
+// delivers nothing new, so the caller refunds it. If it delivers only some of its
+// courses, the rest of the money is refunded here (partialRefund in the result).
 async function fulfillOrder({ orderId, paymentId, userId, courseIds, couponCode, amount, source }) {
   try {
     const result = await runInTransaction(async (session) => {
       const opts = session ? { session } : {}
-      const newlyEnrolled = await enrollUserInCourses(courseIds, userId, session)
+      // Checked first: repeats of a delivered order must not look undeliverable.
+      if (await PaymentRecord.findOne({ orderId }, "_id", opts)) return { alreadyProcessed: true }
 
-      const alreadyEnrolled = await Course.countDocuments(
-        { _id: { $in: courseIds }, deletedAt: null, studentsEnroled: userId },
-        opts
-      )
-      if (newlyEnrolled.length === 0 && alreadyEnrolled === 0) {
-        throw new FulfillmentError("none of the purchased courses are available any more")
+      const newlyEnrolled = await enrollUserInCourses(courseIds, userId, session)
+      if (newlyEnrolled.length === 0) {
+        throw new FulfillmentError("the student already has these courses, or they are no longer available")
       }
+
+      const delivered = new Set(newlyEnrolled.map((c) => String(c._id)))
+      const undelivered = courseIds.map(String).filter((id) => !delivered.has(id))
+      const partialRefund = undelivered.length ? await undeliveredShare(amount, courseIds, undelivered, opts) : 0
 
       await PaymentRecord.create(
         [
@@ -83,8 +100,11 @@ async function fulfillOrder({ orderId, paymentId, userId, courseIds, couponCode,
             orderId,
             paymentId: paymentId || null,
             user: userId,
-            courses: courseIds,
-            amount,
+            courses: [...delivered],
+            amount: roundMoney(amount - partialRefund),
+            chargedAmount: amount,
+            undeliveredCourses: undelivered,
+            partialRefund: { amount: partialRefund, status: partialRefund > 0 ? "pending" : "none" },
             couponCode: couponCode || null,
             source,
           },
@@ -101,7 +121,21 @@ async function fulfillOrder({ orderId, paymentId, userId, courseIds, couponCode,
           { session }
         )
       }
-      return { alreadyProcessed: false }
+      if (partialRefund > 0) {
+        await enqueueEvent(
+          EVENTS.PAYMENT_REFUND_REQUESTED,
+          {
+            orderId,
+            paymentId,
+            userId: String(userId),
+            amount: partialRefund,
+            partial: true,
+            reason: "some courses in this order could not be delivered",
+          },
+          { session }
+        )
+      }
+      return { alreadyProcessed: false, partialRefund }
     })
     // Counted after commit: the callback above can run again on a transient retry.
     if (!result.alreadyProcessed) ordersFulfilled.inc({ source: source || "unknown" })

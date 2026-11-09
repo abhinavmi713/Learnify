@@ -1,6 +1,14 @@
 const Section = require("../models/Section")
 const Course = require("../models/Course")
 const SubSection = require("../models/Subsection")
+const { runInTransaction } = require("../utils/transaction")
+
+// Owning a course says nothing about a section id sent alongside it, so check that
+// the section is really part of that course.
+const belongsToCourse = (course, sectionId) =>
+  course.courseContent.some((id) => id.toString() === String(sectionId))
+const sectionNotFound = (res) => res.status(404).json({ success: false, message: "Section not found" })
+
 // CREATE a new section
 exports.createSection = async (req, res) => {
   try {
@@ -31,18 +39,14 @@ exports.createSection = async (req, res) => {
     }
 
     // Create a new section with the given name
-    const newSection = await Section.create({ sectionName })
+    // Together, so a failure can't leave a section no course points to.
+    await runInTransaction(async (session) => {
+      const opts = session ? { session } : {}
+      const [newSection] = await Section.create([{ sectionName }], opts)
+      await Course.findByIdAndUpdate(courseId, { $push: { courseContent: newSection._id } }, opts)
+    })
 
-    // Add the new section to the course's content array
-    const updatedCourse = await Course.findByIdAndUpdate(
-      courseId,
-      {
-        $push: {
-          courseContent: newSection._id,
-        },
-      },
-      { new: true }
-    )
+    const updatedCourse = await Course.findById(courseId)
       .populate({
         path: "courseContent",
         populate: {
@@ -58,11 +62,11 @@ exports.createSection = async (req, res) => {
       updatedCourse,
     })
   } catch (error) {
+    console.error(error)
     // Handle errors
     res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: error.message,
     })
   }
 }
@@ -94,6 +98,8 @@ exports.updateSection = async (req, res) => {
       })
     }
 
+    if (!belongsToCourse(ownedCourse, sectionId)) return sectionNotFound(res)
+
     const section = await Section.findByIdAndUpdate(
       sectionId,
       { sectionName },
@@ -118,7 +124,6 @@ exports.updateSection = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: error.message,
     })
   }
 }
@@ -150,23 +155,16 @@ exports.deleteSection = async (req, res) => {
       })
     }
 
-    await Course.findByIdAndUpdate(courseId, {
-      $pull: {
-        courseContent: sectionId,
-      },
-    })
+    if (!belongsToCourse(ownedCourse, sectionId)) return sectionNotFound(res)
     const section = await Section.findById(sectionId)
-    console.log(sectionId, courseId)
-    if (!section) {
-      return res.status(404).json({
-        success: false,
-        message: "Section not found",
-      })
-    }
-    // Delete the associated subsections
-    await SubSection.deleteMany({ _id: { $in: section.subSection } })
+    if (!section) return sectionNotFound(res)
 
-    await Section.findByIdAndDelete(sectionId)
+    await runInTransaction(async (session) => {
+      const opts = session ? { session } : {}
+      await Course.findByIdAndUpdate(courseId, { $pull: { courseContent: sectionId } }, opts)
+      await SubSection.deleteMany({ _id: { $in: section.subSection } }, opts)
+      await Section.findByIdAndDelete(sectionId, opts)
+    })
 
     // find the updated course and return it
     const course = await Course.findById(courseId)
@@ -188,7 +186,6 @@ exports.deleteSection = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: error.message,
     })
   }
 }

@@ -4,14 +4,15 @@
 // services. index.js is the actual entrypoint that wires those up and
 // starts listening.
 const express = require("express");
+// Express 4 ignores a rejected async handler, leaving the request hanging. This
+// sends those rejections to errorHandler. Must load before any routes are made.
+require("express-async-errors");
 const app = express();
 
-const os = require("os");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
-const fileUpload = require("express-fileupload");
 const helmet = require("helmet");
 const pinoHttp = require("pino-http");
 const { httpMetrics, metricsHandler } = require("./utils/metrics");
@@ -72,6 +73,18 @@ app.use(helmet());
 if (process.env.NODE_ENV !== "test") {
   app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === "/" || req.url === "/health" } }));
 }
+// CORS runs before body parsing, so a malformed body's 400 still carries CORS
+// headers and the browser reports the real error instead of a CORS failure.
+const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:3000")
+  .split(",")
+  .map((origin) => origin.trim());
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })
+);
 // Keep the raw bytes of the Razorpay webhook body: its signature is computed
 // over the exact payload, which re-serialising the parsed JSON can't reproduce.
 app.use(
@@ -83,29 +96,6 @@ app.use(
 );
 app.use(cookieParser());
 
-const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:3000")
-  .split(",")
-  .map((origin) => origin.trim());
-
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-  })
-);
-// A previously-uncapped upload size let anyone consume unlimited disk/Cloudinary
-// storage and bandwidth through the thumbnail/video upload fields. 512MB covers
-// a real lecture video while still bounding the worst case; tempFileDir uses the
-// OS temp dir instead of a hardcoded Unix path so this isn't Windows/Linux-specific.
-app.use(
-  fileUpload({
-    useTempFiles: true,
-    tempFileDir: os.tmpdir(),
-    limits: { fileSize: 512 * 1024 * 1024 },
-    abortOnLimit: true,
-    responseOnLimit: "File is too large. Maximum upload size is 512MB.",
-  })
-);
 
 // Mount routes
 app.use("/api/v1", generalLimiter);

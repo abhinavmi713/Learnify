@@ -68,13 +68,16 @@ export const getAllCourses = async (params = {}) => {
   return result
 }
 
-export const fetchCourseDetails = async (courseId) => {
+export const fetchCourseDetails = async (courseId, token) => {
   //   dispatch(setLoading(true));
   let result = null
   try {
-    const response = await apiConnector("POST", COURSE_DETAILS_API, {
-      courseId,
-    })
+    const response = await apiConnector(
+      "POST",
+      COURSE_DETAILS_API,
+      { courseId },
+      token ? { Authorization: `Bearer ${token}` } : undefined
+    )
     console.log("COURSE_DETAILS_API API RESPONSE............", response)
 
     if (!response.data.success) {

@@ -1,4 +1,5 @@
 const express = require("express")
+const { uploadImage } = require("../middleware/upload")
 const router = express.Router()
 const { auth, isInstructor } = require("../middleware/auth")
 const { validate } = require("../middleware/validate")
@@ -27,7 +28,7 @@ router.put("/updateProfile", auth, validate(updateProfileSchema), updateProfile)
 router.get("/getUserDetails", auth, getAllUserDetails)
 // Get Enrolled Courses
 router.get("/getEnrolledCourses", auth, getEnrolledCourses)
-router.put("/updateDisplayPicture", auth, updateDisplayPicture)
+router.put("/updateDisplayPicture", auth, uploadImage, updateDisplayPicture)
 router.get("/instructorDashboard", auth, isInstructor, instructorDashboard)
 router.get("/badges", auth, getMyBadges)
 

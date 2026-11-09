@@ -1,6 +1,6 @@
 const Course = require("../models/Course")
 // const Category = require("../models/Category")
-const { invalidateCatalogCache } = require("../utils/cache")
+const { invalidateCatalogCache, getOrSet } = require("../utils/cache")
 
 // function getRandomInt(max) {
 //   return Math.floor(Math.random() * max)
@@ -145,9 +145,10 @@ exports.createCategory = async (req, res) => {
       data: categoryDetails,
     });
   } catch (error) {
+    console.error(error)
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Something went wrong. Please try again.",
     });
   }
 };
@@ -183,9 +184,10 @@ exports.showAllCategories = async (req, res) => {
       }),
     });
   } catch (error) {
+    console.error(error)
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Something went wrong. Please try again.",
     });
   }
 };
@@ -219,7 +221,8 @@ exports.updateCategory = async (req, res) => {
       data: category,
     })
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message })
+    console.error(error)
+    return res.status(500).json({ success: false, message: "Something went wrong. Please try again." })
   }
 }
 
@@ -234,7 +237,8 @@ exports.deleteCategory = async (req, res) => {
       return res.status(404).json({ success: false, message: "Category not found" })
     }
 
-    if (await Course.exists({ category: category._id, deletedAt: null })) {
+    // Archived courses count too: restoring one must not bring back a missing category.
+    if (await Course.exists({ category: category._id })) {
       return res.status(400).json({
         success: false,
         message: "Cannot delete a category that still has courses assigned to it",
@@ -249,84 +253,90 @@ exports.deleteCategory = async (req, res) => {
       message: "Category deleted successfully",
     })
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message })
+    console.error(error)
+    return res.status(500).json({ success: false, message: "Something went wrong. Please try again." })
   }
 }
 
 // Get category page details
+// What a course card needs, for one bounded list of courses.
+const COURSE_PAGE_SIZE = 48
+const SLIDER_SIZE = 12
+const BEST_SELLERS = 10
+
+async function courseCards(match, { sort = { createdAt: -1, _id: -1 }, limit = COURSE_PAGE_SIZE } = {}) {
+  const rows = await Course.aggregate([
+    { $match: { ...match, status: "Published", deletedAt: null } },
+    { $addFields: { studentsCount: { $size: { $ifNull: ["$studentsEnroled", []] } } } },
+    { $sort: sort },
+    { $limit: limit },
+    {
+      $lookup: {
+        from: "ratingandreviews",
+        localField: "ratingAndReviews",
+        foreignField: "_id",
+        as: "reviews",
+        pipeline: [{ $project: { rating: 1 } }],
+      },
+    },
+    {
+      $project: {
+        courseName: 1,
+        price: 1,
+        thumbnail: 1,
+        instructor: 1,
+        createdAt: 1,
+        studentsCount: 1,
+        avgRating: { $round: [{ $ifNull: [{ $avg: "$reviews.rating" }, 0] }, 1] },
+        ratingCount: { $size: "$reviews" },
+      },
+    },
+  ])
+  return Course.populate(rows, { path: "instructor", select: "firstName lastName" })
+}
+
+// The category page: bounded lists, read directly from the courses themselves.
+// (It used to load every course of every category on each request: 7 seconds and
+// 11 MB on 20,000 courses.)
 exports.categoryPageDetails = async (req, res) => {
   try {
-    const { categoryId } = req.body;
-
-    // Get courses in selected category
-    const selectedCategory = await Category.findById(categoryId)
-      .populate({
-        path: "courses",
-        match: { status: "Published" },
-        populate: "ratingAndReviews",
-      })
-      .exec();
-
-    if (!selectedCategory) {
-      return res.status(404).json({
-        success: false,
-        message: "Category not found",
-      });
+    const { categoryId } = req.body
+    const category = await Category.findById(categoryId).select("name description").lean()
+    if (!category) {
+      return res.status(404).json({ success: false, message: "Category not found" })
     }
 
-    if (!selectedCategory.courses || selectedCategory.courses.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No courses found for the selected category.",
-      });
+    const [courses, total] = await Promise.all([
+      courseCards({ category: category._id }),
+      Course.countDocuments({ category: category._id, status: "Published", deletedAt: null }),
+    ])
+    if (courses.length === 0) {
+      return res.status(404).json({ success: false, message: "No courses found for the selected category." })
     }
 
-    // Get one different category with published courses
-    const categoriesExceptSelected = await Category.find({
-      _id: { $ne: categoryId },
-    });
-
-    let differentCategory = null;
-    if (categoriesExceptSelected.length > 0) {
-      differentCategory = await Category.findById(
-        categoriesExceptSelected[getRandomInt(categoriesExceptSelected.length)]._id
-      )
-        .populate({
-          path: "courses",
-          match: { status: "Published" },
-        })
-        .exec();
+    const others = await Category.find({ _id: { $ne: categoryId } }).select("name description").lean()
+    let differentCategory = null
+    if (others.length > 0) {
+      const other = others[getRandomInt(others.length)]
+      differentCategory = { ...other, courses: await courseCards({ category: other._id }, { limit: SLIDER_SIZE }) }
     }
 
-    // Get top-selling courses across all categories
-    const allCategories = await Category.find()
-      .populate({
-        path: "courses",
-        match: { status: "Published" },
-      })
-      .exec();
+    // Counting students across the whole catalog is the expensive part, and it
+    // barely changes, so it's cached (and dropped when the catalog changes).
+    const mostSellingCourses = await getOrSet("catalog", "best-sellers", 300, () =>
+      courseCards({}, { sort: { studentsCount: -1, createdAt: -1 }, limit: BEST_SELLERS })
+    )
 
-    const allCourses = allCategories
-      .flatMap((category) => category.courses)
-      .filter((course) => course && typeof course.sold === "number");
-
-    const mostSellingCourses = allCourses
-      .sort((a, b) => b.sold - a.sold)
-      .slice(0, 10);
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: {
-        selectedCategory,
+        selectedCategory: { ...category, courses, total },
         differentCategory,
         mostSellingCourses,
       },
-    });
+    })
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error.message,
-    });
+    console.error(error)
+    return res.status(500).json({ success: false, message: "Internal server error" })
   }
-};
+}

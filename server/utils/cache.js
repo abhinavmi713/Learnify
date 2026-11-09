@@ -121,13 +121,21 @@ async function waitForValue(key, maxMs = 1500, stepMs = 40) {
 }
 
 // Express middleware caching a GET handler's successful JSON response.
-function cacheResponse(ttlSeconds = 60, { namespace = CATALOG } = {}) {
+// The parts of the URL that change the response. With `params`, anything else is
+// ignored, so ?junk=1 can't force a miss.
+function cacheUrl(req, params) {
+  if (!params) return req.originalUrl
+  const kept = params.filter((p) => req.query[p] !== undefined).map((p) => `${p}=${req.query[p]}`)
+  return `${req.baseUrl}${req.path}?${kept.join("&")}`
+}
+
+function cacheResponse(ttlSeconds = 60, { namespace = CATALOG, params } = {}) {
   return async (req, res, next) => {
     if (req.method !== "GET") return next()
 
     let key
     try {
-      key = `cache:${namespace}:${await currentVersion(namespace)}:${req.originalUrl}`
+      key = `cache:${namespace}:${await currentVersion(namespace)}:${cacheUrl(req, params)}`
       const hit = await storeGet(key)
       if (hit !== undefined) {
         stats.hits++

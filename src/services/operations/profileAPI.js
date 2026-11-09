@@ -28,8 +28,9 @@ export function getUserDetails(token, navigate) {
         : `https://api.dicebear.com/5.x/initials/svg?seed=${response.data.data.firstName} ${response.data.data.lastName}`
       dispatch(setUser({ ...response.data.data, image: userImage }))
     } catch (error) {
-      dispatch(logout(navigate))
       console.log("GET_USER_DETAILS API ERROR............", error)
+      // Only a rejected session means logging out. An outage must not sign people out.
+      if (error?.response?.status === 401) dispatch(logout(navigate))
       toast.error("Could Not Get User Details")
     }
     dispatch(setLoading(false))

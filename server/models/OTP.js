@@ -4,9 +4,15 @@ const OTPSchema = new mongoose.Schema({
 		type: String,
 		required: true,
 	},
+	// A keyed hash of the code (utils/otp.js), never the code itself.
 	otp: {
 		type: String,
 		required: true,
+	},
+	// Wrong guesses so far. The code is destroyed at the limit.
+	attempts: {
+		type: Number,
+		default: 0,
 	},
 	createdAt: {
 		type: Date,

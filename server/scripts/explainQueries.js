@@ -69,14 +69,16 @@ async function seed(db) {
   return { user: users[0], instructor: instructors[0] }
 }
 
-// The queries, as the controllers issue them.
+// The queries, exactly as the controllers issue them. A similar query can have a
+// different plan: an earlier version left out the _id tie-breaker and hid an
+// in-memory sort.
 function queries(db, { user, instructor }) {
   return [
-    ["catalog: published, newest first", () => db.collection("courses").find({ status: "Published", deletedAt: null }).sort({ createdAt: -1 }).limit(24)],
+    ["catalog: published, newest first", () => db.collection("courses").find({ status: "Published", deletedAt: null }).sort({ createdAt: -1, _id: -1 }).limit(24)],
     ["moderation queue: pending, newest first", () => db.collection("courses").find({ status: "Pending" }).sort({ createdAt: -1 }).limit(50)],
     ["instructor's courses", () => db.collection("courses").find({ instructor, deletedAt: null })],
     ["student's progress (profile stats)", () => db.collection("courseprogresses").find({ userId: user })],
-    ["notification feed", () => db.collection("notifications").find({ user }).sort({ createdAt: -1 }).limit(30)],
+    ["notification feed", () => db.collection("notifications").find({ user }).sort({ createdAt: -1, _id: -1 }).limit(30)],
     ["unread notification count", () => db.collection("notifications").find({ user, read: false })],
     ["revenue: collected payments", () => db.collection("paymentrecords").find({ status: "fulfilled" }, { projection: { _id: 0, amount: 1, createdAt: 1 } })],
   ]
@@ -86,9 +88,9 @@ function queries(db, { user, instructor }) {
 const INDEXES = {
   // Equality, Sort, Range: status (equality) then createdAt (sort), with
   // deletedAt last so one index serves the catalog and the moderation queue.
-  courses: [{ status: 1, createdAt: -1, deletedAt: 1 }, { instructor: 1, deletedAt: 1 }],
+  courses: [{ status: 1, createdAt: -1, _id: -1, deletedAt: 1 }, { instructor: 1, deletedAt: 1 }],
   courseprogresses: [{ userId: 1 }],
-  notifications: [{ user: 1, createdAt: -1 }, { user: 1, read: 1 }],
+  notifications: [{ user: 1, createdAt: -1, _id: -1 }, { user: 1, read: 1 }],
   // Covering index: holds every field the revenue query reads, so MongoDB never
   // fetches the documents (an ordinary index on a low-selectivity status is
   // slower than a collection scan).

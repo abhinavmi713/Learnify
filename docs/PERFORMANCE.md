@@ -36,12 +36,17 @@ payments), runs the app's hot queries with `explain("executionStats")`, adds the
 
 | Query | Before | After |
 |---|---|---|
-| catalog: published, newest first | `SORT>COLLSCAN` 20,000 docs, 10 ms | `IXSCAN` 24 docs, 0 ms |
+| catalog: published, newest first | `SORT>COLLSCAN` 20,000 docs, 10 ms | `IXSCAN` 25 docs, 5 ms (see the correction below) |
 | moderation queue: pending, newest first | `SORT>COLLSCAN` 20,000 docs, 8 ms | `IXSCAN` 50 docs, 0 ms |
 | instructor's courses | `COLLSCAN` 20,000 docs, 8 ms | `IXSCAN` 64 docs, 0 ms |
 | student's progress (profile stats) | `COLLSCAN` 200,000 docs, 64 ms | `IXSCAN` 12 docs, 2 ms |
 | notification feed | `SORT` in memory | `IXSCAN`, no sort |
 | revenue: collected payments | `COLLSCAN` 50,000 docs, 24 ms | `PROJECTION_COVERED`, **0 docs read**, 16 ms |
+
+**Correction.** These numbers first came from a simpler query than the code runs: `sort({ createdAt: -1 })`, while the
+catalog and feed also sort on `_id` to break ties. With `_id` missing from the index, the real catalog query read
+18,000 documents per page and the feed read 50,000 rows, both sorting in memory, and the cache hid it in load tests.
+The indexes now include `_id` and the script runs the real queries.
 
 What the numbers taught:
 

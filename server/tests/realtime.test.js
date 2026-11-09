@@ -105,7 +105,7 @@ describe("handshake authentication", () => {
 
   test("rejects a token that was logged out", async () => {
     const { student } = await world()
-    const token = jwt.sign({ id: String(student._id), jti: "sess-1" }, process.env.JWT_SECRET, { expiresIn: "1h" })
+    const token = jwt.sign({ id: String(student._id), jti: "sess-1" }, process.env.JWT_SECRET, { expiresIn: "1h", audience: "learnify:access" })
     await revokeToken(jwt.decode(token))
     await expect(connect(token)).rejects.toThrow(/Session ended/)
   })

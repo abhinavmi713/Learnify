@@ -57,7 +57,6 @@ exports.updateProfile = async (req, res) => {
     console.log(error)
     return res.status(500).json({
       success: false,
-      error: error.message,
     })
   }
 }
@@ -113,9 +112,10 @@ exports.getAllUserDetails = async (req, res) => {
       data: userDetails,
     })
   } catch (error) {
+    console.error(error)
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Something went wrong. Please try again.",
     })
   }
 }
@@ -142,9 +142,10 @@ exports.updateDisplayPicture = async (req, res) => {
       data: updatedProfile,
     })
   } catch (error) {
+    console.error(error)
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Something went wrong. Please try again.",
     })
   }
 }
@@ -208,9 +209,10 @@ exports.getEnrolledCourses = async (req, res) => {
       data: userDetails.courses,
     })
   } catch (error) {
+    console.error(error)
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Something went wrong. Please try again.",
     })
   }
 }

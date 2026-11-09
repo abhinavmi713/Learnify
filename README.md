@@ -30,7 +30,7 @@ quizzes, live classes, a dashboard with revenue and enrollment trends, and signe
 integrations.
 
 **Admins:** course moderation, user management, categories, coupons, learning paths, platform analytics and
-an append-only audit log.
+a tamper-resistant audit log.
 
 **Accounts:** OTP-verified signup, 15-minute access tokens with rotating refresh tokens, session list and
 "sign out everywhere", optional TOTP two-factor login with recovery codes, account lockout.

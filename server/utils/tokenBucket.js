@@ -20,7 +20,7 @@ local data = redis.call('HMGET', KEYS[1], 'tokens', 'ts')
 local tokens = tonumber(data[1])
 local ts = tonumber(data[2])
 if tokens == nil then tokens = capacity; ts = now end
-tokens = math.min(capacity, tokens + ((now - ts) / 1000) * rate)
+tokens = math.min(capacity, tokens + (math.max(0, now - ts) / 1000) * rate)
 local allowed = 0
 local retryMs = 0
 if tokens >= cost then

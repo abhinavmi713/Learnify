@@ -60,20 +60,29 @@ exports.createRating = async (req, res) => {
     }
 
     // Create a new rating and review
-    const ratingReview = await RatingAndReview.create({
+    let ratingReview
+    try {
+      ratingReview = await RatingAndReview.create({
       rating: numericRating,
       review,
       course: courseId,
       user: userId,
     })
+    } catch (error) {
+      // The unique index caught a simultaneous second review.
+      if (error.code === 11000) {
+        return res.status(403).json({ success: false, message: "Course already reviewed by user" })
+      }
+      throw error
+    }
 
-    invalidateCatalogCache()
     // Add the rating and review to the course
     await Course.findByIdAndUpdate(courseId, {
       $push: {
         ratingAndReviews: ratingReview,
       },
     })
+    invalidateCatalogCache()
     await courseDetails.save()
     // Re-ranks the course in search and notifies the instructor's webhooks.
     await enqueueEvent(EVENTS.REVIEW_CREATED, {
@@ -93,7 +102,6 @@ exports.createRating = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: error.message,
     })
   }
 }
@@ -132,7 +140,6 @@ exports.getAverageRating = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to retrieve the rating for the course",
-      error: error.message,
     })
   }
 }
@@ -168,7 +175,6 @@ exports.getAllRatingReview = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to retrieve the rating and review for the course",
-      error: error.message,
     })
   }
 }

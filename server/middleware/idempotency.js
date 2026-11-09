@@ -12,6 +12,8 @@ const logger = require("../utils/logger")
 // - Same key while the first is still running: 409, try again shortly.
 // - Same key with a different body: 422, keys must not be reused for other work.
 // - A 5xx response is not stored, so the client may retry with the same key.
+//   Everything else is stored, so controllers must answer temporary failures with
+//   a 5xx, or they become the permanent answer for that key.
 //
 // Keys are scoped per user and route. Stored in Redis (shared by all API
 // instances); an in-process map is used when Redis is not configured.
@@ -73,7 +75,13 @@ function idempotent({ ttlSec = 24 * 3600, required = false } = {}) {
     }
 
     if (!claimed) {
-      const existing = JSON.parse((await store.get(scope)) || "null")
+      let existing
+      try {
+        existing = JSON.parse((await store.get(scope)) || "null")
+      } catch (error) {
+        logger.warn({ err: error.message }, "idempotency store unavailable")
+        return res.status(503).json({ success: false, message: "Please try again shortly" })
+      }
       if (!existing) return res.status(409).json({ success: false, message: "Request in progress, retry shortly" })
       if (existing.fp !== fp) {
         return res.status(422).json({ success: false, message: "Idempotency-Key was already used for a different request" })

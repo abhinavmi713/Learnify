@@ -56,13 +56,13 @@ export async function startTwoFactorSetup(token) {
   }
 }
 
-export async function enableTwoFactor(token, code) {
+export async function enableTwoFactor(token, code, password) {
   try {
-    const res = await apiConnector("POST", TWO_FA_ENABLE_API, { code }, auth(token))
+    const res = await apiConnector("POST", TWO_FA_ENABLE_API, { code, password }, auth(token))
     toast.success("Two-factor authentication is on")
     return res.data.data.recoveryCodes
   } catch (error) {
-    toast.error(message(error, "That code is not valid"))
+    toast.error(message(error, "Could not turn on two-factor authentication"))
     return null
   }
 }

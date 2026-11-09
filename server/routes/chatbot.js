@@ -98,7 +98,6 @@ Question: ${message}`
     return res.status(500).json({
       success: false,
       error: "Gemini API Error",
-      detail: error.detail || error.message,
     });
   }
 });

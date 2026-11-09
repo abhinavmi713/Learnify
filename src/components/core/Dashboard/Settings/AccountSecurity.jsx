@@ -63,12 +63,13 @@ function TwoFactor() {
   const confirmSetup = async (e) => {
     e.preventDefault()
     setBusy(true)
-    const codes = await enableTwoFactor(token, code.trim())
+    const codes = await enableTwoFactor(token, code.trim(), password)
     setBusy(false)
     if (!codes) return
     setRecoveryCodes(codes)
     setSetup(null)
     setCode("")
+    setPassword("")
     setEnabled(true)
   }
 
@@ -122,20 +123,32 @@ function TwoFactor() {
             <label className="text-sm text-richblack-100" htmlFor="totp-code">
               2. Enter the 6-digit code it shows:
             </label>
+            <input
+              id="totp-code"
+              required
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              placeholder="123456"
+              className="form-style w-36 tracking-widest"
+            />
+            <label className="text-sm text-richblack-100" htmlFor="totp-password">
+              3. Confirm your password:
+            </label>
+            <input
+              id="totp-password"
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              className="form-style w-full max-w-xs"
+            />
             <div className="flex flex-wrap items-center gap-3">
-              <input
-                id="totp-code"
-                required
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                placeholder="123456"
-                className="form-style w-36 tracking-widest"
-              />
               <IconBtn type="submit" text={busy ? "Checking..." : "Turn on"} disabled={busy} />
-              <button type="button" onClick={() => setSetup(null)} className="text-sm text-richblack-300">
+              <button type="button" onClick={() => { setSetup(null); setPassword("") }} className="text-sm text-richblack-300">
                 Cancel
               </button>
             </div>

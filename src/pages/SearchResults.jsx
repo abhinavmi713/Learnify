@@ -22,6 +22,8 @@ const RATING_OPTIONS = [4, 3, 2, 1]
 export default function SearchResults() {
   const [searchParams, setSearchParams] = useSearchParams()
   const query = searchParams.get("q") || ""
+  // What's being typed. The URL, and so the search, follows after a short pause.
+  const [draft, setDraft] = useState(query)
 
   const [allCategories, setAllCategories] = useState([])
   const [category, setCategory] = useState("")
@@ -49,11 +51,24 @@ export default function SearchResults() {
     })()
   }, [])
 
+  // Follow the URL when it changes some other way (back button, "did you mean").
+  useEffect(() => {
+    setDraft(query)
+  }, [query])
+
+  useEffect(() => {
+    if (draft === query) return undefined
+    const timer = setTimeout(() => setSearchParams({ q: draft }, { replace: true }), 300)
+    return () => clearTimeout(timer)
+  }, [draft, query, setSearchParams])
+
   useEffect(() => {
     setPage(1)
   }, [query, category, minPrice, maxPrice, minRating, sortBy])
 
   useEffect(() => {
+    // A slower, older search must not replace the results of a newer one.
+    let cancelled = false
     ;(async () => {
       setLoading(true)
       const filters = {
@@ -68,6 +83,7 @@ export default function SearchResults() {
       if (minRating !== "") filters.minRating = Number(minRating)
 
       const res = await searchCourses(filters, { silent: true })
+      if (cancelled) return
       setResults(res.data || [])
       setPagination(res.pagination || { total: 0, pages: 0 })
       setCategoryCounts(
@@ -76,6 +92,9 @@ export default function SearchResults() {
       setDidYouMean(res.didYouMean || null)
       setLoading(false)
     })()
+    return () => {
+      cancelled = true
+    }
   }, [query, category, minPrice, maxPrice, minRating, sortBy, page])
 
   const clearFilters = () => {
@@ -104,8 +123,8 @@ export default function SearchResults() {
                 Search
               </label>
               <input
-                value={query}
-                onChange={(e) => setSearchParams({ q: e.target.value })}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
                 placeholder="Search courses..."
                 className="w-full rounded-lg border border-richblack-600 bg-richblack-800 px-3 py-2 text-sm text-richblack-5 placeholder:text-richblack-400 focus:border-richblue-300 focus:outline-none"
               />

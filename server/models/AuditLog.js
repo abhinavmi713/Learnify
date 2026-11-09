@@ -20,6 +20,9 @@ const auditLogSchema = new mongoose.Schema(
 )
 
 auditLogSchema.index({ createdAt: -1 })
+// The admin screen filters by these and sorts newest first by _id.
+auditLogSchema.index({ actorEmail: 1, _id: -1 })
+auditLogSchema.index({ action: 1, _id: -1 })
 auditLogSchema.index({ action: 1, createdAt: -1 })
 auditLogSchema.index({ actor: 1, createdAt: -1 })
 

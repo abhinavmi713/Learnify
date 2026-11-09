@@ -39,7 +39,8 @@ exports.getMyNotifications = async (req, res) => {
       nextCursor: hasMore ? encodeCursor(notifications[notifications.length - 1]) : null,
     })
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message })
+    console.error(error)
+    return res.status(500).json({ success: false, message: "Something went wrong. Please try again." })
   }
 }
 
@@ -60,7 +61,8 @@ exports.markNotificationRead = async (req, res) => {
 
     return res.status(200).json({ success: true, message: "Marked as read" })
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message })
+    console.error(error)
+    return res.status(500).json({ success: false, message: "Something went wrong. Please try again." })
   }
 }
 
@@ -69,6 +71,7 @@ exports.markAllRead = async (req, res) => {
     await Notification.updateMany({ user: req.user.id, read: false }, { read: true })
     return res.status(200).json({ success: true, message: "All notifications marked as read" })
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message })
+    console.error(error)
+    return res.status(500).json({ success: false, message: "Something went wrong. Please try again." })
   }
 }

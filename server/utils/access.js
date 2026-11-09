@@ -18,7 +18,9 @@ async function findCourseForSubsection(subsectionId) {
   if (!mongoose.isValidObjectId(subsectionId)) return null
   const section = await Section.findOne({ subSection: subsectionId }).select("_id")
   if (!section) return null
-  return Course.findOne({ courseContent: section._id, deletedAt: null }).select("instructor studentsEnroled courseName")
+  // Archived courses are included: enrolled students keep their access. Callers
+  // still check that the user is a participant.
+  return Course.findOne({ courseContent: section._id }).select("instructor studentsEnroled courseName")
 }
 
 // Resolves to the course if `user` may take part in this lecture, else null.

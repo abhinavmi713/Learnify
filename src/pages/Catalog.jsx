@@ -59,8 +59,7 @@ function Catalog() {
   const selected = catalogPageData?.data?.selectedCategory
   const sorted = [...(selected?.courses || [])].sort((x, y) =>
     active === 1
-      ? (y.studentsEnrolled?.length || y.studentsEnroled?.length || 0) -
-        (x.studentsEnrolled?.length || x.studentsEnroled?.length || 0)
+      ? (y.studentsCount || 0) - (x.studentsCount || 0)
       : new Date(y.createdAt || 0) - new Date(x.createdAt || 0)
   )
 

@@ -3,7 +3,12 @@ const { z } = require("zod")
 // A minimum length requirement didn't exist anywhere before this — signup and
 // password-reset would happily accept a 1-character password since the
 // controllers only checked for truthiness, not strength.
-const password = z.string().min(8, "Password must be at least 8 characters")
+// bcrypt ignores everything past 72 bytes, so a longer password would be silently
+// truncated.
+const password = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .refine((value) => Buffer.byteLength(value) <= 72, "Password must be at most 72 bytes")
 
 const signupSchema = z
   .object({
@@ -57,7 +62,10 @@ const loginTwoFactorSchema = z.object({
   challenge: z.string().min(1, "Sign-in expired, please log in again"),
   code: secondFactorCode,
 })
-const twoFactorCodeSchema = z.object({ code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code") })
+const twoFactorCodeSchema = z.object({
+  code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code"),
+  password: z.string().min(1, "Password is required"),
+})
 const disableTwoFactorSchema = z.object({ password: z.string().min(1, "Password is required"), code: secondFactorCode })
 const revokeSessionSchema = z.object({ sessionId: z.string().uuid() })
 

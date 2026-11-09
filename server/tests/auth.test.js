@@ -3,6 +3,13 @@ jest.mock("../utils/mailSender", () => jest.fn().mockResolvedValue({ response: "
 const request = require("supertest")
 const app = require("../app")
 const OTP = require("../models/OTP")
+const OutboxEvent = require("../models/OutboxEvent")
+
+// Codes are stored hashed, so tests read the one queued for the verification email.
+const latestOtp = async (email) => {
+  const event = await OutboxEvent.findOne({ type: "otp.requested", "payload.email": email }).sort({ createdAt: -1 })
+  return { otp: event.payload.otp }
+}
 const User = require("../models/User")
 const { startTestDb, stopTestDb, clearTestDb } = require("./setupTestDb")
 
@@ -24,8 +31,8 @@ describe("signup + login", () => {
 
   test("signup succeeds with a valid OTP, then login succeeds", async () => {
     await request(app).post("/api/v1/auth/sendotp").send({ email })
-    const otpDoc = await OTP.findOne({ email }).sort({ createdAt: -1 })
-    expect(otpDoc).toBeTruthy()
+    const otpDoc = await latestOtp(email)
+    expect(otpDoc.otp).toBeTruthy()
 
     const signupRes = await request(app).post("/api/v1/auth/signup").send({
       firstName: "New",
@@ -71,7 +78,7 @@ describe("login lockout", () => {
 
   beforeEach(async () => {
     await request(app).post("/api/v1/auth/sendotp").send({ email })
-    const otpDoc = await OTP.findOne({ email }).sort({ createdAt: -1 })
+    const otpDoc = await latestOtp(email)
     await request(app).post("/api/v1/auth/signup").send({
       firstName: "Lock",
       lastName: "Out",
@@ -130,7 +137,7 @@ describe("duplicate email", () => {
 describe("signup request validation", () => {
   test("rejects a password shorter than 8 characters", async () => {
     await request(app).post("/api/v1/auth/sendotp").send({ email: "short@example.com" })
-    const otpDoc = await OTP.findOne({ email: "short@example.com" }).sort({ createdAt: -1 })
+    const otpDoc = await latestOtp("short@example.com")
 
     const res = await request(app).post("/api/v1/auth/signup").send({
       firstName: "Short",
@@ -157,7 +164,7 @@ describe("signup request validation", () => {
 
   test("still rejects accountType: Admin even though it now fails at the validation layer", async () => {
     await request(app).post("/api/v1/auth/sendotp").send({ email: "wannabe-admin@example.com" })
-    const otpDoc = await OTP.findOne({ email: "wannabe-admin@example.com" }).sort({ createdAt: -1 })
+    const otpDoc = await latestOtp("wannabe-admin@example.com")
 
     const res = await request(app).post("/api/v1/auth/signup").send({
       firstName: "Wannabe",

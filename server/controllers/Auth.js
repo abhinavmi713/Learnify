@@ -1,8 +1,11 @@
 const bcrypt = require("bcryptjs")
 const User = require("../models/User")
 const OTP = require("../models/OTP")
+const { hashOtp, otpMatches } = require("../utils/otp")
+const { TWO_FACTOR_AUDIENCE } = require("../config/tokens")
 const jwt = require("jsonwebtoken")
 const crypto = require("crypto")
+const MAX_OTP_ATTEMPTS = 5
 const { runInTransaction } = require("../utils/transaction")
 const { enqueueEvent } = require("../events/outbox")
 const { EVENTS } = require("../events/types")
@@ -37,7 +40,7 @@ exports.signup = async (req, res) => {
       !confirmPassword ||
       !otp
     ) {
-      return res.status(403).send({
+      return res.status(400).json({
         success: false,
         message: "All Fields are required",
       })
@@ -72,19 +75,23 @@ exports.signup = async (req, res) => {
     }
 
     // Find the most recent OTP for the email
-    const response = await OTP.find({ email }).sort({ createdAt: -1 }).limit(1)
-    if (response.length === 0) {
-      // OTP not found for the email
-      return res.status(400).json({
-        success: false,
-        message: "The OTP is not valid",
-      })
-    } else if (otp !== response[0].otp) {
-      // Invalid OTP
-      return res.status(400).json({
-        success: false,
-        message: "The OTP is not valid",
-      })
+    const latest = await OTP.findOne({ email }).sort({ createdAt: -1 })
+    if (!latest) {
+      return res.status(400).json({ success: false, message: "The OTP is not valid" })
+    }
+    // Count the attempt before checking it, atomically, so parallel guesses can't
+    // get past the limit.
+    const counted = await OTP.findOneAndUpdate(
+      { _id: latest._id, attempts: { $lt: MAX_OTP_ATTEMPTS } },
+      { $inc: { attempts: 1 } },
+      { new: true }
+    )
+    if (!counted) {
+      return res.status(400).json({ success: false, message: "Too many wrong codes. Please request a new one." })
+    }
+    if (!otpMatches(email, otp, counted.otp)) {
+      if (counted.attempts >= MAX_OTP_ATTEMPTS) await OTP.deleteMany({ email })
+      return res.status(400).json({ success: false, message: "The OTP is not valid" })
     }
 
     // Hash the password
@@ -102,6 +109,7 @@ exports.signup = async (req, res) => {
     // account always gets its welcome email queued and never a half-made profile.
     const user = await runInTransaction(async (session) => {
       const opts = session ? { session } : {}
+      await OTP.deleteMany({ email }, opts)
       const [profileDetails] = await Profile.create(
         [{ gender: null, dateOfBirth: null, about: null, contactNumber: null }],
         opts
@@ -146,6 +154,9 @@ exports.signup = async (req, res) => {
   }
 }
 
+// Compared when an email is unknown, so that login takes the same time either way.
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync(crypto.randomBytes(16).toString("hex"), 10)
+
 // Lockout policy for repeated failed login attempts on a single account.
 const MAX_FAILED_ATTEMPTS = 5
 const LOCK_DURATION_MS = 15 * 60 * 1000 // 15 minutes
@@ -164,7 +175,7 @@ function signTwoFactorChallenge(user) {
   return jwt.sign(
     { id: String(user._id), purpose: "2fa", tokenVersion: user.tokenVersion || 0 },
     process.env.JWT_SECRET,
-    { expiresIn: "5m" }
+    { expiresIn: "5m", audience: TWO_FACTOR_AUDIENCE }
   )
 }
 exports.signTwoFactorChallenge = signTwoFactorChallenge
@@ -181,6 +192,9 @@ async function completeLogin(req, res, user) {
   return res.status(200).json({ success: true, token, user: safeUser, message: `User Login Success` })
 }
 exports.completeLogin = completeLogin
+
+// The same answer either way, so login doesn't reveal which emails have accounts.
+const BAD_CREDENTIALS = "Incorrect email or password"
 
 exports.login = async (req, res) => {
   try {
@@ -201,12 +215,9 @@ exports.login = async (req, res) => {
 
     // If user not found with provided email
     if (!user) {
+      await bcrypt.compare(String(password), DUMMY_PASSWORD_HASH)
       await recordAudit(req, { action: "auth.login", outcome: "failure", metadata: { email, reason: "unknown_email" } })
-      // Return 401 Unauthorized status code with error message
-      return res.status(401).json({
-        success: false,
-        message: `User is not Registered with Us Please SignUp to Continue`,
-      })
+      return res.status(401).json({ success: false, message: BAD_CREDENTIALS })
     }
 
     // Reject if an admin has deactivated this account
@@ -264,10 +275,7 @@ exports.login = async (req, res) => {
         metadata: { reason: "bad_password", locked: Boolean(update.lockUntil) },
       })
 
-      return res.status(401).json({
-        success: false,
-        message: `Password is incorrect`,
-      })
+      return res.status(401).json({ success: false, message: BAD_CREDENTIALS })
     }
   } catch (error) {
     console.error(error)
@@ -306,7 +314,9 @@ exports.sendotp = async (req, res) => {
     // worker sends the mail (with retries) after this request has returned.
     await runInTransaction(async (session) => {
       const opts = session ? { session } : {}
-      await OTP.create([{ email, otp }], opts)
+      // A new code replaces older ones, along with their guess counts.
+      await OTP.deleteMany({ email }, opts)
+      await OTP.create([{ email, otp: hashOtp(email, otp) }], opts)
       await enqueueEvent(EVENTS.OTP_REQUESTED, { email, otp }, { session })
     })
     // Local-development convenience only: lets you finish signup even when
@@ -320,7 +330,7 @@ exports.sendotp = async (req, res) => {
     })
   } catch (error) {
     console.log(error.message)
-    return res.status(500).json({ success: false, error: error.message })
+    return res.status(500).json({ success: false, message: "Something went wrong. Please try again." })
   }
 }
 
@@ -382,7 +392,6 @@ exports.changePassword = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Error occurred while updating password",
-      error: error.message,
     })
   }
 }

@@ -4,6 +4,7 @@ const RefreshToken = require("../models/RefreshToken")
 const User = require("../models/User")
 const { revokeToken } = require("./tokenRevocation")
 const { recordAudit } = require("./audit")
+const { ACCESS_AUDIENCE } = require("../config/tokens")
 
 // Sessions = a short-lived access token (JWT, sent as a Bearer header) plus a
 // long-lived, rotating refresh token in an httpOnly cookie.
@@ -42,7 +43,7 @@ function signAccessToken(user) {
       tokenVersion: user.tokenVersion || 0,
     },
     process.env.JWT_SECRET,
-    { expiresIn: ACCESS_TTL(), jwtid: crypto.randomUUID() }
+    { expiresIn: ACCESS_TTL(), jwtid: crypto.randomUUID(), audience: ACCESS_AUDIENCE }
   )
 }
 
@@ -108,6 +109,15 @@ async function revokeAllSessions(userId, reason) {
   )
 }
 
+// Ends every session except the one presenting this refresh cookie.
+async function revokeOtherSessions(userId, currentRaw, reason) {
+  const current = currentRaw ? await RefreshToken.findOne({ tokenHash: hash(currentRaw) }).select("family") : null
+  await RefreshToken.updateMany(
+    { user: userId, revokedAt: null, ...(current ? { family: { $ne: current.family } } : {}) },
+    { $set: { revokedAt: new Date(), revokedReason: reason } }
+  )
+}
+
 // Exchanges a refresh token for a new access token and the next refresh token.
 async function rotate(req, res) {
   const raw = readRefreshCookie(req)
@@ -132,6 +142,10 @@ async function rotate(req, res) {
     }
     // A used token came back: someone has a copy. End every session of this login.
     await revokeFamily(doc.family, "reuse_detected")
+    // Also end the access tokens already handed out, which would otherwise keep
+    // working until they expire. They carry no family, so this signs out every
+    // device, the safe choice when a token is known to be stolen.
+    await User.updateOne({ _id: doc.user }, { $inc: { tokenVersion: 1 } })
     await recordAudit(req, {
       action: "auth.refresh_reuse_detected",
       outcome: "failure",
@@ -194,6 +208,7 @@ module.exports = {
   endSession,
   revokeFamily,
   revokeAllSessions,
+  revokeOtherSessions,
   listSessions,
   readRefreshCookie,
   clearRefreshCookie,

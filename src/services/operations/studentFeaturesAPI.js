@@ -10,7 +10,6 @@ import { studentEndpoints } from "../apis"
 const {
   COURSE_PAYMENT_API,
   COURSE_VERIFY_API,
-  SEND_PAYMENT_SUCCESS_EMAIL_API,
 } = studentEndpoints
 
 // Load the Razorpay SDK from the CDN
@@ -77,6 +76,7 @@ export async function BuyCourse(
       toast.error(
         "Razorpay SDK failed to load. Check your Internet Connection."
       )
+      toast.dismiss(toastId)
       return
     }
 
@@ -94,7 +94,6 @@ export async function BuyCourse(
         email: user_details.email,
       },
       handler: function (response) {
-        sendPaymentSuccessEmail(response, orderResponse.data.data.amount, token)
         verifyPayment({ ...response, courses }, token, navigate, dispatch)
       },
     }
@@ -107,7 +106,7 @@ export async function BuyCourse(
     })
   } catch (error) {
     console.log("PAYMENT API ERROR............", error)
-    toast.error("Could Not make Payment.")
+    toast.error(error?.response?.data?.message || "Could Not make Payment.")
   }
   toast.dismiss(toastId)
 }
@@ -117,11 +116,25 @@ async function verifyPayment(bodyData, token, navigate, dispatch) {
   const toastId = toast.loading("Verifying Payment...")
   dispatch(setPaymentLoading(true))
   try {
-    const response = await apiConnector("POST", COURSE_VERIFY_API, bodyData, {
-      Authorization: `Bearer ${token}`,
-      // The payment id is unique, so retries of this verification are replayed.
-      ...(bodyData?.razorpay_payment_id ? { "Idempotency-Key": `verify-${bodyData.razorpay_payment_id}` } : {}),
-    })
+    const send = () =>
+      apiConnector("POST", COURSE_VERIFY_API, bodyData, {
+        Authorization: `Bearer ${token}`,
+        // The payment id is unique, so retries of this verification are replayed.
+        ...(bodyData?.razorpay_payment_id ? { "Idempotency-Key": `verify-${bodyData.razorpay_payment_id}` } : {}),
+      })
+    // The money has already been taken, so a brief failure is worth retrying.
+    let response
+    for (let attempt = 1; ; attempt++) {
+      try {
+        response = await send()
+        break
+      } catch (error) {
+        const status = error?.response?.status
+        const temporary = !status || status >= 500 || status === 409
+        if (!temporary || attempt === 3) throw error
+        await new Promise((resolve) => setTimeout(resolve, attempt * 1500))
+      }
+    }
 
     console.log("VERIFY PAYMENT RESPONSE FROM BACKEND............", response)
 
@@ -134,28 +147,9 @@ async function verifyPayment(bodyData, token, navigate, dispatch) {
     dispatch(removeCourses(bodyData.courses))
   } catch (error) {
     console.log("PAYMENT VERIFY ERROR............", error)
-    toast.error("Could Not Verify Payment.")
+    toast.error(error?.response?.data?.message || "Could Not Verify Payment.")
   }
   toast.dismiss(toastId)
   dispatch(setPaymentLoading(false))
 }
 
-// Send the Payment Success Email
-async function sendPaymentSuccessEmail(response, amount, token) {
-  try {
-    await apiConnector(
-      "POST",
-      SEND_PAYMENT_SUCCESS_EMAIL_API,
-      {
-        orderId: response.razorpay_order_id,
-        paymentId: response.razorpay_payment_id,
-        amount,
-      },
-      {
-        Authorization: `Bearer ${token}`,
-      }
-    )
-  } catch (error) {
-    console.log("PAYMENT SUCCESS EMAIL ERROR............", error)
-  }
-}

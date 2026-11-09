@@ -77,8 +77,13 @@ const coursesSchema = new mongoose.Schema({
 coursesSchema.index({ courseName: "text", courseDescription: "text", tag: "text" })
 // Equality, Sort, Range: serves the catalog (Published, not deleted, newest
 // first) and the moderation queue (Pending, newest first) without an in-memory
-// sort. Measured with `npm run perf:explain` (docs/PERFORMANCE.md).
-coursesSchema.index({ status: 1, createdAt: -1, deletedAt: 1 })
+// sort. _id must be here because the catalog breaks ties on it: without it
+// MongoDB sorted every published course on each page. `npm run perf:explain`.
+coursesSchema.index({ status: 1, createdAt: -1, _id: -1, deletedAt: 1 })
+// A category's courses, newest first.
+coursesSchema.index({ category: 1, status: 1, createdAt: -1 })
+// Which course owns a section (lecture access checks, section ownership).
+coursesSchema.index({ courseContent: 1 })
 // An instructor's own courses (dashboard, live classes).
 coursesSchema.index({ instructor: 1, deletedAt: 1 })
 

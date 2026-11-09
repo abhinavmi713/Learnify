@@ -2,10 +2,7 @@ const crypto = require("crypto")
 const mongoose = require("mongoose")
 const { getInstance } = require("../config/razorpay")
 const Course = require("../models/Course")
-const User = require("../models/User")
-const mailSender = require("../utils/mailSender")
 const logger = require("../utils/logger")
-const { paymentSuccessEmail } = require("../mail/templates/paymentSuccessEmail")
 const { findRedeemableCoupon, computeDiscount } = require("../utils/coupon")
 const { fulfillOrder, compensateFailedFulfillment, FulfillmentError } = require("../utils/orderFulfillment")
 
@@ -49,14 +46,14 @@ exports.capturePayment = async (req, res) => {
   const userId = req.user.id
 
   if (!Array.isArray(courses) || courses.length === 0) {
-    return res.json({ success: false, message: "Please Provide Course ID" })
+    return res.status(400).json({ success: false, message: "Please Provide Course ID" })
   }
   if (!courses.every((id) => mongoose.isValidObjectId(id))) {
-    return res.json({ success: false, message: "Invalid Course ID provided" })
+    return res.status(400).json({ success: false, message: "Invalid Course ID provided" })
   }
   const courseIds = [...new Set(courses.map(String))]
   if (courseIds.length > MAX_CART_COURSES) {
-    return res.json({
+    return res.status(400).json({
       success: false,
       message: `You can check out at most ${MAX_CART_COURSES} courses at a time`,
     })
@@ -68,10 +65,10 @@ exports.capturePayment = async (req, res) => {
     // Only published, non-archived courses can be bought — previously any
     // course id (including an unreviewed draft) could be purchased directly.
     if (!course || course.status !== "Published" || course.deletedAt) {
-      return res.status(200).json({ success: false, message: "Could not find the Course" })
+      return res.status(404).json({ success: false, message: "Could not find the Course" })
     }
     if (course.studentsEnroled.some((id) => id.toString() === userId)) {
-      return res.status(200).json({ success: false, message: "Student is already Enrolled" })
+      return res.status(409).json({ success: false, message: "Student is already Enrolled" })
     }
     subtotal += course.price || 0
   }
@@ -81,7 +78,7 @@ exports.capturePayment = async (req, res) => {
   let appliedCouponCode = null
   if (couponCode) {
     const { coupon, error } = await findRedeemableCoupon(couponCode)
-    if (error) return res.status(200).json({ success: false, message: error })
+    if (error) return res.status(400).json({ success: false, message: error })
     discount = computeDiscount(coupon, subtotal)
     appliedCouponCode = coupon.code
   }
@@ -91,7 +88,9 @@ exports.capturePayment = async (req, res) => {
     // A zero total (free course or 100%-off coupon) skips Razorpay entirely.
     if (finalAmount <= 0) {
       await fulfillOrder({
-        orderId: `free_${crypto.randomUUID()}`,
+        // The same user and courses give the same id, so repeats can't create a
+        // second record or count the coupon twice.
+        orderId: `free_${userId}_${[...courseIds].sort().join("_")}`,
         userId,
         courseIds,
         couponCode: appliedCouponCode,
@@ -106,7 +105,8 @@ exports.capturePayment = async (req, res) => {
     }
 
     const order = await getInstance().orders.create({
-      amount: finalAmount * 100,
+      // Razorpay needs whole paise; 19.99 * 100 is 1998.9999999999998 in floating point.
+      amount: Math.round(finalAmount * 100),
       currency: "INR",
       receipt: `rcpt_${Date.now()}_${userId.slice(-6)}`,
       notes: {
@@ -119,6 +119,9 @@ exports.capturePayment = async (req, res) => {
     })
     return res.json({ success: true, data: order })
   } catch (error) {
+    if (error instanceof FulfillmentError) {
+      return res.status(409).json({ success: false, message: "These courses are not available" })
+    }
     logger.error({ err: error.message }, "could not create order")
     return res.status(500).json({ success: false, message: "Could not initiate order." })
   }
@@ -128,7 +131,8 @@ exports.capturePayment = async (req, res) => {
 exports.verifyPayment = async (req, res) => {
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature, courses } = req.body || {}
   const userId = req.user.id
-  const fail = () => res.status(200).json({ success: false, message: "Payment Failed" })
+  // A definite answer: this payment is not valid. The idempotency layer may store it.
+  const fail = () => res.status(400).json({ success: false, message: "Payment Failed" })
 
   if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) return fail()
 
@@ -169,8 +173,13 @@ exports.verifyPayment = async (req, res) => {
     }
     return res.status(200).json({ success: true, message: "Payment Verified" })
   } catch (error) {
+    // Temporary (Razorpay or the database): the payment may be perfectly good. A 5xx
+    // isn't stored by the idempotency layer, so the client can retry.
     logger.error({ err: error.message }, "verifyPayment failed")
-    return fail()
+    return res.status(503).json({
+      success: false,
+      message: "We could not confirm your payment yet. If you were charged, you will be enrolled shortly.",
+    })
   }
 }
 
@@ -222,27 +231,5 @@ exports.razorpayWebhook = async (req, res) => {
     // 5xx makes Razorpay retry the delivery later.
     logger.error({ err: error.message }, "razorpay webhook failed")
     return res.status(500).json({ success: false })
-  }
-}
-
-// Receipt email after payment.
-exports.sendPaymentSuccessEmail = async (req, res) => {
-  const { orderId, paymentId, amount } = req.body
-  const userId = req.user.id
-
-  if (!orderId || !paymentId || !amount || !userId) {
-    return res.status(400).json({ success: false, message: "Please provide all the details" })
-  }
-
-  try {
-    const student = await User.findById(userId)
-    await mailSender(
-      student.email,
-      `Payment Received`,
-      paymentSuccessEmail(`${student.firstName} ${student.lastName}`, amount / 100, orderId, paymentId)
-    )
-    return res.status(200).json({ success: true, message: "Payment email sent" })
-  } catch (error) {
-    return res.status(400).json({ success: false, message: "Could not send email" })
   }
 }
