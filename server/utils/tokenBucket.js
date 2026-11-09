@@ -24,7 +24,7 @@ tokens = math.min(capacity, tokens + (math.max(0, now - ts) / 1000) * rate)
 local allowed = 0
 local retryMs = 0
 if tokens >= cost then
-  tokens = tokens - cost
+  tokens = math.min(capacity, tokens - cost)
   allowed = 1
 else
   retryMs = math.ceil(((cost - tokens) / rate) * 1000)
@@ -55,7 +55,7 @@ function takeLocal(key, capacity, refillPerSec, cost) {
   let allowed = false
   let retryMs = 0
   if (bucket.tokens >= cost) {
-    bucket.tokens -= cost
+    bucket.tokens = Math.min(capacity, bucket.tokens - cost)
     allowed = true
   } else {
     retryMs = Math.ceil(((cost - bucket.tokens) / refillPerSec) * 1000)
@@ -78,15 +78,25 @@ async function take(key, { capacity, refillPerSec, cost = 1 }) {
 }
 
 // Express middleware. `keyFn(req)` picks the bucket (per user, per email, ...).
-function tokenBucketLimiter({ name, capacity, refillPerSec, keyFn, message }) {
+// With refundOnSuccess, a request that ends below 400 gets its token back, so only
+// failures are counted (a negative cost adds a token, capped at capacity).
+function tokenBucketLimiter({ name, capacity, refillPerSec, keyFn, message, refundOnSuccess = false }) {
   return async (req, res, next) => {
     if (process.env.NODE_ENV === "test" && !process.env.RATE_LIMIT_IN_TESTS) return next()
     const subject = keyFn(req)
     if (!subject) return next()
-    const result = await take(`${name}:${subject}`, { capacity, refillPerSec })
+    const key = `${name}:${subject}`
+    const result = await take(key, { capacity, refillPerSec })
     res.set("X-RateLimit-Limit", String(capacity))
     res.set("X-RateLimit-Remaining", String(result.remaining))
-    if (result.allowed) return next()
+    if (result.allowed) {
+      if (refundOnSuccess) {
+        res.on("finish", () => {
+          if (res.statusCode < 400) take(key, { capacity, refillPerSec, cost: -1 }).catch(() => {})
+        })
+      }
+      return next()
+    }
     res.set("Retry-After", String(Math.ceil(result.retryMs / 1000)))
     return res.status(429).json({
       success: false,

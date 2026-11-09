@@ -28,7 +28,7 @@ export async function getPendingCourses(token, page = 1) {
       "GET",
       GET_PENDING_COURSES_API,
       null,
-      { Authorization: `Bearer ${token}` },
+      null,
       { page }
     )
     return { items: res?.data?.data || [], pagination: res?.data?.pagination || null }
@@ -44,7 +44,7 @@ export async function getArchivedCourses(token, page = 1) {
       "GET",
       GET_ARCHIVED_COURSES_API,
       null,
-      { Authorization: `Bearer ${token}` },
+      null,
       { page }
     )
     return { items: res?.data?.data || [], pagination: res?.data?.pagination || null }
@@ -60,7 +60,7 @@ export async function restoreCourse(courseId, token) {
       "POST",
       RESTORE_COURSE_API,
       { courseId },
-      { Authorization: `Bearer ${token}` }
+      null
     )
     if (!res.data.success) throw new Error(res.data.message)
     toast.success("Course restored")
@@ -77,7 +77,7 @@ export async function approveCourse(courseId, token) {
       "POST",
       APPROVE_COURSE_API,
       { courseId },
-      { Authorization: `Bearer ${token}` }
+      null
     )
     if (!res.data.success) throw new Error(res.data.message)
     toast.success("Course approved")
@@ -94,7 +94,7 @@ export async function rejectCourse(courseId, reason, token) {
       "POST",
       REJECT_COURSE_API,
       { courseId, reason },
-      { Authorization: `Bearer ${token}` }
+      null
     )
     if (!res.data.success) throw new Error(res.data.message)
     toast.success("Course rejected")
@@ -111,7 +111,7 @@ export async function getAllUsersAdmin(token, { search = "", accountType = "", p
       "GET",
       GET_ALL_USERS_ADMIN_API,
       null,
-      { Authorization: `Bearer ${token}` },
+      null,
       { search, accountType: accountType || undefined, page }
     )
     return { items: res?.data?.data || [], pagination: res?.data?.pagination || null }
@@ -127,7 +127,7 @@ export async function setUserActive(userId, active, token) {
       "POST",
       SET_USER_ACTIVE_API,
       { userId, active },
-      { Authorization: `Bearer ${token}` }
+      null
     )
     if (!res.data.success) throw new Error(res.data.message)
     toast.success(res.data.message)
@@ -140,9 +140,7 @@ export async function setUserActive(userId, active, token) {
 
 export async function getPlatformAnalytics(token) {
   try {
-    const res = await apiConnector("GET", GET_PLATFORM_ANALYTICS_API, null, {
-      Authorization: `Bearer ${token}`,
-    })
+    const res = await apiConnector("GET", GET_PLATFORM_ANALYTICS_API, null, null)
     return res?.data?.data || null
   } catch (error) {
     toast.error("Could not load platform analytics")
@@ -152,9 +150,7 @@ export async function getPlatformAnalytics(token) {
 
 export async function createCategory(data, token) {
   try {
-    const res = await apiConnector("POST", CREATE_CATEGORY_API, data, {
-      Authorization: `Bearer ${token}`,
-    })
+    const res = await apiConnector("POST", CREATE_CATEGORY_API, data, null)
     if (!res.data.success) throw new Error(res.data.message)
     toast.success("Category created")
     return true
@@ -166,9 +162,7 @@ export async function createCategory(data, token) {
 
 export async function updateCategory(data, token) {
   try {
-    const res = await apiConnector("POST", UPDATE_CATEGORY_API, data, {
-      Authorization: `Bearer ${token}`,
-    })
+    const res = await apiConnector("POST", UPDATE_CATEGORY_API, data, null)
     if (!res.data.success) throw new Error(res.data.message)
     toast.success("Category updated")
     return true
@@ -184,7 +178,7 @@ export async function deleteCategory(categoryId, token) {
       "POST",
       DELETE_CATEGORY_API,
       { categoryId },
-      { Authorization: `Bearer ${token}` }
+      null
     )
     if (!res.data.success) throw new Error(res.data.message)
     toast.success("Category deleted")
@@ -202,7 +196,7 @@ export async function getAuditLogs(token, { action = "", outcome = "", actor = "
       "GET",
       GET_AUDIT_LOGS_API,
       null,
-      { Authorization: `Bearer ${token}` },
+      null,
       { action: action || undefined, outcome: outcome || undefined, actor: actor || undefined, before: before || undefined, limit: 25 }
     )
     return { items: res.data.data, nextCursor: res.data.nextCursor, actions: res.data.actions }

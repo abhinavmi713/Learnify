@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useSelector } from "react-redux";
 import { Link, useLocation } from "react-router-dom";
 
 import { apiConnector } from "../../services/apiConnector";
@@ -10,7 +9,6 @@ const { CHATBOT_API } = chatbotEndpoints;
 
 export default function ChatBot() {
   const location = useLocation();
-  const { token } = useSelector((state) => state.auth);
   // ChatBot is mounted outside of any <Route>, so useParams() won't see the
   // matched course — pull it straight out of the URL instead when the
   // student is on a course-viewing page, so the assistant can ground its
@@ -38,7 +36,7 @@ export default function ChatBot() {
         "POST",
         CHATBOT_API,
         { message: userMsg, courseId },
-        { Authorization: `Bearer ${token}` }
+        null
       );
 
       const data = response.data;

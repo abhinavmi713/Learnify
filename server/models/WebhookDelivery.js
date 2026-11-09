@@ -5,7 +5,7 @@ const mongoose = require("mongoose")
 const webhookDeliverySchema = new mongoose.Schema(
   {
     webhook: { type: mongoose.Schema.Types.ObjectId, ref: "Webhook", required: true },
-    owner: { type: mongoose.Schema.Types.ObjectId, ref: "user", required: true },
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     event: { type: String, required: true },
     payload: { type: mongoose.Schema.Types.Mixed, required: true },
     // "<domain event id>:<webhook event>:<course>", unique per webhook: fan-out

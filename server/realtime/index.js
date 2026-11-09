@@ -148,7 +148,12 @@ function initRealtime(httpServer) {
   io = new Server(httpServer, {
     cors: { origin: corsOrigins(), credentials: true },
     // Recover briefly-dropped connections (mobile networks) without losing events.
-    connectionStateRecovery: { maxDisconnectionDuration: 2 * 60 * 1000 },
+    // Only the default in-memory adapter supports it; the classic Redis adapter
+    // used with several instances does not, so it's off there and clients simply
+    // reconnect. skipMiddlewares: false re-checks the token on every recovery.
+    ...(process.env.REDIS_URL
+      ? {}
+      : { connectionStateRecovery: { maxDisconnectionDuration: 2 * 60 * 1000, skipMiddlewares: false } }),
   })
 
   if (process.env.REDIS_URL) {

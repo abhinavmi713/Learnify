@@ -24,6 +24,12 @@ exports.updateCourseProgress = async (req, res) => {
     if (!subsection) {
       return res.status(404).json({ error: "Invalid subsection" })
     }
+    // The lecture must belong to this course. Otherwise lectures from any other
+    // course could be marked as watched here, and count towards its certificate.
+    const section = await Section.findOne({ subSection: subsectionId }).select("_id")
+    if (!section || !(await Course.exists({ _id: courseId, courseContent: section._id }))) {
+      return res.status(404).json({ error: "This lecture is not part of the course" })
+    }
 
     // Find the course progress document for the user and course
     let courseProgress = await CourseProgress.findOne({

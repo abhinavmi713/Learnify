@@ -61,7 +61,7 @@ failure-prone side effects) and the **AI service** (course-grounded answers). Se
 | Area | Technology |
 |---|---|
 | Frontend | React 18, Redux Toolkit, React Router, Tailwind CSS, Socket.IO client |
-| API | Node.js 20, Express, Mongoose, zod validation, pino logging |
+| API | Node.js 22, Express, Mongoose, zod validation, pino logging |
 | Data | MongoDB (replica set, transactions), Redis, Elasticsearch, Qdrant |
 | Messaging | RabbitMQ (topic exchange, retry queues, dead-letter queues), transactional outbox |
 | AI | Google Gemini (embeddings + generation), retrieval-augmented generation |
@@ -72,7 +72,7 @@ failure-prone side effects) and the **AI service** (course-grounded answers). Se
 
 ## Quick start
 
-Requirements: Node.js 20+, Docker Desktop.
+Requirements: Node.js 22+, Docker Desktop.
 
 ```bash
 git clone https://github.com/abhinavmi713/Learnify.git

@@ -12,14 +12,20 @@ function registerCheck(name, probe, { critical = false, timeoutMs = 1500 } = {})
 
 async function runOne(name, { probe, critical, timeoutMs }) {
   const started = Date.now()
+  let timer
   try {
     await Promise.race([
       Promise.resolve().then(probe),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), timeoutMs)),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("timeout")), timeoutMs)
+      }),
     ])
     return [name, { status: "up", ms: Date.now() - started, critical }]
   } catch (error) {
     return [name, { status: "down", error: error.message, critical }]
+  } finally {
+    // Otherwise every health check leaves a timer running after it has answered.
+    clearTimeout(timer)
   }
 }
 

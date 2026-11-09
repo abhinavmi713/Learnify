@@ -15,7 +15,7 @@ export function applyCoupon(code, courseIds, token) {
         "POST",
         VALIDATE_COUPON_API,
         { code, courses: courseIds },
-        { Authorization: `Bearer ${token}` }
+        null
       )
       if (!response?.data?.success) {
         throw new Error(response?.data?.message || "Invalid coupon")

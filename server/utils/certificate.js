@@ -23,15 +23,13 @@ async function checkAndIssueCertificate(userId, courseId) {
   })
   if (!course) return null
 
-  const totalLectures = course.courseContent.reduce(
-    (sum, section) => sum + section.subSection.length,
-    0
-  )
-  if (totalLectures === 0) return null
+  const lectures = new Set(course.courseContent.flatMap((section) => section.subSection.map((sub) => String(sub._id))))
+  if (lectures.size === 0) return null
 
   const progress = await CourseProgress.findOne({ courseID: courseId, userId })
-  const completedCount = progress?.completedVideos?.length || 0
-  if (completedCount < totalLectures) return null
+  // Only this course's lectures count, whatever else the progress list holds.
+  const completed = new Set((progress?.completedVideos || []).map(String).filter((id) => lectures.has(id)))
+  if (completed.size < lectures.size) return null
 
   const quizzes = await Quiz.find({ course: courseId }).select("_id")
   if (quizzes.length > 0) {

@@ -6,7 +6,7 @@
 	"scripts": {
 		"start": "node index.js",
 		"dev": "nodemon index.js",
-		"test": "jest --runInBand --forceExit",
+		"test": "jest",
 		"create-admin": "node scripts/createAdmin.js",
 		"outbox:status": "node scripts/outboxStatus.js",
 		"seed:demo": "node scripts/seedDemo.js",
@@ -17,7 +17,8 @@
 		"perf:explain": "node scripts/explainQueries.js",
 		"outbox:requeue": "node scripts/outboxRequeue.js",
 		"dlq:replay": "node scripts/replayDlq.js",
-		"db:indexes": "node scripts/syncIndexes.js"
+		"db:indexes": "node scripts/syncIndexes.js",
+		"db:app-role": "node scripts/createAppRole.js"
 	},
 	"keywords": [
 		"learnify-backend"
@@ -73,5 +74,8 @@
 		"nodemon": "^3.1.14",
 		"socket.io-client": "^4.8.4",
 		"supertest": "^7.2.2"
+	},
+	"engines": {
+		"node": ">=22"
 	}
 }

@@ -72,11 +72,18 @@ limiters off), in-process cache and event bus. k6 runs in Docker on the same lap
 
 | | Search p95 | Search avg | Suggest p95 | Requests/s |
 |---|---:|---:|---:|---:|
-| MongoDB (`$text`/regex + `$lookup` ratings) | 4.33 s | 803 ms | 48 ms | 51 |
+| MongoDB (`$text`/regex + `$lookup` ratings), first version | 4.33 s | 803 ms | 48 ms | 51 |
+| MongoDB, sort and page before joining reviews (Nov 2026) | 855 ms | 398 ms | 145 ms | 78 |
+| MongoDB, plus a 30 s cache of search results (Nov 2026) | 18 ms | 7 ms | 39 ms | 229 |
 | Elasticsearch, first version | 1.75 s | 779 ms | 216 ms | 48 |
 | Elasticsearch, title-only plain highlighting | **76 ms** | **36 ms** | **48 ms** | **200** |
 
 Relevance differs too: the typo `dockr` finds 331 Docker courses on Elasticsearch and none on MongoDB.
+
+The two November rows are on the same data and load. Joining reviews only for the page being returned took
+MongoDB from 4.33 s to 855 ms. The cache row flatters it: the script repeats about 30 distinct searches, so
+nearly all were cache hits. A search nobody has made in the last 30 seconds still takes the 855 ms path, which
+is why Elasticsearch stays the primary engine.
 
 The first Elasticsearch version was barely faster than MongoDB. Its own `took` time showed the cost was in
 Elasticsearch (325 ms for "javascript", 7 ms for "node"); removing features one at a time pointed at

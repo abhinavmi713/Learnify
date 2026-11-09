@@ -2,11 +2,11 @@ const express = require("express")
 const router = express.Router()
 
 const { createNote, getNotesForSubsection, deleteNote } = require("../controllers/Note")
-const { auth, isStudent } = require("../middleware/auth")
+const { auth, requirePermission } = require("../middleware/auth")
 const { validate } = require("../middleware/validate")
 const { createNoteSchema, deleteNoteSchema } = require("../validators/miscValidators")
 
-router.post("/create", auth, isStudent, validate(createNoteSchema), createNote)
-router.get("/", auth, isStudent, getNotesForSubsection)
-router.post("/delete", auth, isStudent, validate(deleteNoteSchema), deleteNote)
+router.post("/create", auth, requirePermission("course:learn"), validate(createNoteSchema), createNote)
+router.get("/", auth, requirePermission("course:learn"), getNotesForSubsection)
+router.post("/delete", auth, requirePermission("course:learn"), validate(deleteNoteSchema), deleteNote)
 module.exports = router

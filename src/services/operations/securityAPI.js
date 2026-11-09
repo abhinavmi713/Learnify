@@ -12,7 +12,7 @@ const {
   TWO_FA_DISABLE_API,
 } = securityEndpoints
 
-const auth = (token) => ({ Authorization: `Bearer ${token}` })
+const auth = (token) => (null)
 const message = (error, fallback) => error?.response?.data?.message || fallback
 
 export async function getSessions(token) {

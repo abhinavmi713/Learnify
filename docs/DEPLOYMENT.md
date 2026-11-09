@@ -44,6 +44,9 @@ Every optional service can be added later: the app keeps working without it.
 - **Cloudinary:** cloud name, API key and secret. Uploads go to the `Learnify` folder.
 - **Email (SMTP):** a transactional provider (Resend, Brevo, Amazon SES) or a Gmail app password. Set
   `MAIL_FROM` to a sender on a domain you verified with the provider (SPF/DKIM), or mail lands in spam.
+  **Render's free web services block outbound SMTP** (ports 25, 465 and 587, since September 2025), so OTP and
+  receipt emails fail on a free instance. Mail is sent by the worker, which already needs a paid instance; if
+  the API sends mail itself (`RUN_WORKER_IN_API`), it needs a paid instance too, or a provider with an HTTPS API.
 - **Gemini:** a dedicated API key for this project, with a spending limit in Google Cloud.
 - **Sentry (optional):** a Node project's DSN for error tracking.
 
@@ -94,8 +97,19 @@ npm run search:reindex                       # only if Elasticsearch is configur
 cd ai-service && npm run reindex             # only if the AI service is configured
 ```
 
-Then sign in as that admin, create categories, and turn on two-factor authentication (Settings →
-Security). Do not run `seed:demo` against production.
+Then sign in as that admin and **turn on two-factor authentication first** (Settings → Security): in
+production, admin tools, categories and coupons refuse admins without it (`REQUIRE_ADMIN_2FA=0` turns that
+off). Then create categories. Do not run `seed:demo` against production.
+
+**Indexes.** Mongoose doesn't build indexes in production (`autoIndex` is off), so a deploy builds them with
+`npm run db:indexes`. `render.yaml` runs it as the API's pre-deploy command (paid instances); on a free
+instance the API creates the indexes of empty collections when it starts and logs an error naming any that
+are missing elsewhere, so run `npm run db:indexes` yourself after the first deploy and after schema changes.
+
+**Optional, recommended: an app role that can't edit the audit log.** On a self-hosted MongoDB,
+`npm run db:app-role` creates a role and user that can read and write everything but only insert into
+`auditlogs`; use that user in `MONGODB_URL`. On Atlas, create the same custom role under Database Access (the
+script's header lists the privileges).
 
 ## 5. Frontend on Vercel
 
@@ -110,8 +124,11 @@ Security). Do not run `seed:demo` against production.
 ## 6. Integrations that need public URLs
 
 - **Razorpay webhook:** Dashboard → Webhooks → add `https://api.yourdomain.com/api/v1/payment/webhook`
-  for `payment.captured`, and put its secret in `RAZORPAY_WEBHOOK_SECRET`. Without it, a student who pays and
-  closes the tab before returning is charged but not enrolled.
+  with these events, and put its secret in `RAZORPAY_WEBHOOK_SECRET`:
+  - `payment.captured`: without it, a student who pays and closes the tab before returning is charged but
+    not enrolled;
+  - `refund.processed`: a refund made from Razorpay's dashboard takes the courses back;
+  - `payment.dispute.created`: chargebacks are recorded on the payment and in the audit log.
 - **Cloudinary:** nothing to configure; uploads are signed by the API.
 
 ## 7. Monitoring in production
@@ -139,7 +156,8 @@ Security). Do not run `seed:demo` against production.
 - [ ] AI assistant answers with citations for an enrolled student
 - [ ] Admin: approve a course, see it in the audit log
 - [ ] Turn on 2FA for the admin account
-- [ ] `https://api.yourdomain.com/api/docs` is reachable (or block it at the proxy if you prefer it private)
+- [ ] `https://api.yourdomain.com/api/docs` answers 404 (docs are hidden in production; set `DOCS_PUBLIC=1` to publish them)
+- [ ] The API's logs show no "missing indexes" error
 - [ ] Switch Razorpay to live keys and do one real low-value purchase and refund
 
 ## Approximate monthly cost

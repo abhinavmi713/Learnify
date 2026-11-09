@@ -65,6 +65,12 @@ services:
     rootDir: server
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
+    # Deploy a commit only after its GitHub Actions checks pass.
+    autoDeployTrigger: checksPass
+    # Indexes are built here, not by Mongoose at startup (autoIndex is off in
+    # production). Pre-deploy commands need a paid instance; on a free one the
+    # API still creates indexes for empty collections when it starts.
+    preDeployCommand: npm run db:indexes
     envVars:
       - fromGroup: learnify-backend
       # Consumers run in the worker service, not inside the API.
@@ -82,9 +88,12 @@ services:
     rootDir: server
     dockerfilePath: ./Dockerfile
     dockerCommand: node workers/index.js
+    autoDeployTrigger: checksPass
     envVars:
       - fromGroup: learnify-backend
       # The worker also relays the outbox; the API keeps its relay as a backup.
+      # Render background workers accept no inbound traffic, so Prometheus could
+      # not scrape a metrics port here; on other hosts, set a port (9464).
       - key: WORKER_METRICS_PORT
         value: "0"
 
@@ -94,6 +103,7 @@ services:
     rootDir: ai-service
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
+    autoDeployTrigger: checksPass
     envVars:
       - key: NODE_ENV
         value: production

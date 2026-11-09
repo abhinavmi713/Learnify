@@ -9,7 +9,14 @@ process.env.RAZORPAY_WEBHOOK_SECRET = "test_webhook_secret"
 jest.mock("../utils/mailSender", () => jest.fn().mockResolvedValue({ response: "mocked" }))
 
 const mockOrders = { create: jest.fn(), fetch: jest.fn() }
-jest.mock("../config/razorpay", () => ({ getInstance: () => ({ orders: mockOrders }) }))
+// verifyPayment also fetches the payment: by default it's captured, for the order
+// the test just returned from orders.fetch.
+const mockCapturedPayment = async (id) => {
+  const order = await mockOrders.fetch.mock.results.at(-1)?.value
+  return { id, order_id: order?.id, amount: order?.amount, status: "captured" }
+}
+const mockPayments = { fetch: jest.fn(mockCapturedPayment), capture: jest.fn() }
+jest.mock("../config/razorpay", () => ({ getInstance: () => ({ orders: mockOrders, payments: mockPayments }) }))
 
 const crypto = require("crypto")
 const request = require("supertest")

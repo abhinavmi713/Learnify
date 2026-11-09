@@ -9,9 +9,7 @@ const { GET_MY_CERTIFICATES_API, DOWNLOAD_CERTIFICATE_API, VERIFY_CERTIFICATE_AP
 
 export async function getMyCertificates(token) {
   try {
-    const response = await apiConnector("GET", GET_MY_CERTIFICATES_API, null, {
-      Authorization: `Bearer ${token}`,
-    })
+    const response = await apiConnector("GET", GET_MY_CERTIFICATES_API, null, null)
     if (!response?.data?.success) throw new Error("Could not fetch certificates")
     return response.data.data
   } catch (error) {
@@ -28,7 +26,7 @@ export async function downloadCertificate(certificateId, token) {
     const response = await axiosInstance({
       method: "GET",
       url: `${DOWNLOAD_CERTIFICATE_API}/${certificateId}`,
-      headers: { Authorization: `Bearer ${token}` },
+      headers: null,
       responseType: "blob",
     })
     const url = window.URL.createObjectURL(new Blob([response.data]))

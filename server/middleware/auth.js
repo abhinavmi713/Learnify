@@ -99,7 +99,8 @@ exports.optionalAuth = async (req, res, next) => {
 // who you are and you may not do this".
 const forbidden = (res, message) => res.status(403).json({ success: false, message });
 
-// Requires every listed permission (see config/permissions.js).
+// Requires every listed permission (see config/permissions.js). Every protected
+// route uses this; what each role may do is decided only in that table.
 exports.requirePermission = (...permissions) => {
 	const middleware = (req, res, next) => {
 		const role = req.user?.accountType;
@@ -110,13 +111,6 @@ exports.requirePermission = (...permissions) => {
 	return middleware;
 };
 
-const requireRole = (role, message) => {
-	const middleware = (req, res, next) =>
-		req.user?.accountType === role ? next() : forbidden(res, message);
-	middleware.openapi = { roles: [role] };
-	return middleware;
-};
-
 // In production, admin tools need two-factor authentication. Admins can still
 // reach their settings to turn it on. REQUIRE_ADMIN_2FA=0 switches this off.
 exports.requireAdmin2FA = (req, res, next) => {
@@ -124,10 +118,6 @@ exports.requireAdmin2FA = (req, res, next) => {
 	if (!enforced || req.authUser?.twoFactorEnabled) return next();
 	return forbidden(res, "Turn on two-factor authentication in Settings to use admin tools.");
 };
-
-exports.isStudent = requireRole("Student", "This is a Protected Route for Students");
-exports.isAdmin = requireRole("Admin", "This is a Protected Route for Admin");
-exports.isInstructor = requireRole("Instructor", "This is a Protected Route for Instructor");
 
 // Read by openapi/generate.js.
 exports.auth.openapi = { auth: "required" };

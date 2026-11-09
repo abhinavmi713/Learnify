@@ -45,9 +45,7 @@ export async function getLearningPathDetails(pathId) {
 
 export async function createLearningPath(data, token) {
   try {
-    const response = await apiConnector("POST", CREATE_LEARNING_PATH_API, data, {
-      Authorization: `Bearer ${token}`,
-    })
+    const response = await apiConnector("POST", CREATE_LEARNING_PATH_API, data, null)
     if (!response?.data?.success) throw new Error(response?.data?.message)
     toast.success("Learning path created")
     return true
@@ -60,9 +58,7 @@ export async function createLearningPath(data, token) {
 
 export async function updateLearningPath(data, token) {
   try {
-    const response = await apiConnector("POST", UPDATE_LEARNING_PATH_API, data, {
-      Authorization: `Bearer ${token}`,
-    })
+    const response = await apiConnector("POST", UPDATE_LEARNING_PATH_API, data, null)
     if (!response?.data?.success) throw new Error(response?.data?.message)
     toast.success("Learning path updated")
     return true
@@ -79,7 +75,7 @@ export async function deleteLearningPath(pathId, token) {
       "POST",
       DELETE_LEARNING_PATH_API,
       { pathId },
-      { Authorization: `Bearer ${token}` }
+      null
     )
     if (!response?.data?.success) throw new Error(response?.data?.message)
     toast.success("Learning path deleted")

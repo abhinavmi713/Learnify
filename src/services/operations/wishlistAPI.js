@@ -11,9 +11,7 @@ const { GET_WISHLIST_API, ADD_TO_WISHLIST_API, REMOVE_FROM_WISHLIST_API } =
 // Fetches the full wishlist (populated course objects) — used on the Wishlist page.
 export async function getWishlist(token) {
   try {
-    const response = await apiConnector("GET", GET_WISHLIST_API, null, {
-      Authorization: `Bearer ${token}`,
-    })
+    const response = await apiConnector("GET", GET_WISHLIST_API, null, null)
     if (!response?.data?.success) throw new Error("Could not fetch wishlist")
     return response.data.data
   } catch (error) {
@@ -45,7 +43,7 @@ export function toggleWishlist(courseId, isWishlisted, token) {
         "POST",
         url,
         { courseId },
-        { Authorization: `Bearer ${token}` }
+        null
       )
       if (!response?.data?.success) throw new Error("Wishlist update failed")
       toast.success(isWishlisted ? "Removed from wishlist" : "Added to wishlist")

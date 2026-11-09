@@ -54,6 +54,12 @@ const ordersFulfilled = new client.Counter({
   labelNames: ["source"],
 })
 
+const auditWriteFailures = new client.Counter({
+  name: "learnify_audit_write_failures_total",
+  help: "Audit entries that could not be written (outside a transaction)",
+  labelNames: ["action"],
+})
+
 const webhookDeliveries = new client.Counter({
   name: "learnify_webhook_deliveries_total",
   help: "Outbound webhook delivery attempts",
@@ -140,4 +146,5 @@ module.exports = {
   searchRequests,
   ordersFulfilled,
   webhookDeliveries,
+  auditWriteFailures,
 }

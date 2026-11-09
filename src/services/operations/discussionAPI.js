@@ -12,7 +12,7 @@ export async function getDiscussions(subsectionId, token) {
       "GET",
       GET_DISCUSSIONS_API,
       null,
-      { Authorization: `Bearer ${token}` },
+      null,
       { subsectionId }
     )
     if (!response?.data?.success) throw new Error("Could not fetch discussion")
@@ -25,9 +25,7 @@ export async function getDiscussions(subsectionId, token) {
 
 export async function postDiscussion(data, token) {
   try {
-    const response = await apiConnector("POST", CREATE_DISCUSSION_API, data, {
-      Authorization: `Bearer ${token}`,
-    })
+    const response = await apiConnector("POST", CREATE_DISCUSSION_API, data, null)
     if (!response?.data?.success) throw new Error(response?.data?.message)
     return response.data.data
   } catch (error) {
@@ -43,7 +41,7 @@ export async function deleteDiscussion(discussionId, token) {
       "POST",
       DELETE_DISCUSSION_API,
       { discussionId },
-      { Authorization: `Bearer ${token}` }
+      null
     )
     return !!response?.data?.success
   } catch (error) {

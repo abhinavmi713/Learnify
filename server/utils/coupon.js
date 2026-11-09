@@ -38,4 +38,41 @@ function computeDiscount(coupon, subtotal) {
   return Math.min(discount, subtotal)
 }
 
-module.exports = { findRedeemableCoupon, computeDiscount }
+// How long a checkout may hold a limited coupon before paying.
+const RESERVATION_MS = 30 * 60 * 1000
+
+// Reserves one use of a limited coupon for this student's checkout. Atomic: the
+// push only happens while used + live reservations is below maxUses, so five
+// shoppers racing for the last use can't all get it. Unlimited coupons need no
+// reservation. Returns true when the student may use it.
+async function reserveCouponUse(code, userId) {
+  const now = new Date()
+  // Drop expired holds, and this student's own earlier hold (a new checkout replaces it).
+  await Coupon.updateOne({ code }, { $pull: { reservations: { $or: [{ expiresAt: { $lte: now } }, { user: userId }] } } })
+  const reserved = await Coupon.findOneAndUpdate(
+    {
+      code,
+      $or: [
+        { maxUses: null },
+        {
+          $expr: {
+            $lt: [
+              { $add: ["$usedCount", { $size: { $filter: { input: "$reservations", cond: { $gt: ["$$this.expiresAt", now] } } } }] },
+              "$maxUses",
+            ],
+          },
+        },
+      ],
+    },
+    { $push: { reservations: { user: userId, expiresAt: new Date(now.getTime() + RESERVATION_MS) } } },
+    { new: true }
+  )
+  return Boolean(reserved)
+}
+
+// Gives a reserved use back, for a checkout that didn't go ahead.
+async function releaseCouponReservation(code, userId) {
+  await Coupon.updateOne({ code }, { $pull: { reservations: { user: userId } } })
+}
+
+module.exports = { findRedeemableCoupon, computeDiscount, reserveCouponUse, releaseCouponReservation, RESERVATION_MS }

@@ -49,16 +49,30 @@ const {
 // ********************************************************************************************************
 
 // Route for user login
-// Two layers: loginLimiter caps failed attempts per IP; the bucket caps attempts per
-// target account, so a botnet rotating IPs still cannot guess one password fast.
+// Three layers, all counting failures only (a successful login gets its token back):
+//   loginLimiter      failed attempts per IP, across all accounts
+//   loginBucket       one account from one IP: 8, then 2 a minute. Keyed on the
+//                     pair, so a stranger's failures can't use up the owner's tries
+//   accountLoginBucket one account from anywhere: a much higher ceiling (30, then
+//                     6 a minute) that still stops a botnet guessing one password
+const loginEmail = (req) => String(req.body?.email || "").trim().toLowerCase()
 const loginBucket = tokenBucketLimiter({
   name: "login",
   capacity: 8,
   refillPerSec: 1 / 30,
-  keyFn: (req) => String(req.body?.email || "").trim().toLowerCase(),
+  refundOnSuccess: true,
+  keyFn: (req) => loginEmail(req) && `${loginEmail(req)}|${req.ip}`,
   message: "Too many login attempts for this account. Please wait a little before trying again.",
 })
-router.post("/login", loginLimiter, loginBucket, validate(loginSchema), login)
+const accountLoginBucket = tokenBucketLimiter({
+  name: "login-account",
+  capacity: 30,
+  refillPerSec: 1 / 10,
+  refundOnSuccess: true,
+  keyFn: loginEmail,
+  message: "Too many login attempts for this account. Please wait a little before trying again.",
+})
+router.post("/login", loginLimiter, loginBucket, accountLoginBucket, validate(loginSchema), login)
 
 // Second login step for accounts with two-factor authentication.
 router.post("/login/2fa", twoFactorLimiter, validate(loginTwoFactorSchema), loginTwoFactor)

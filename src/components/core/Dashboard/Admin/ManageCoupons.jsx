@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react"
 import { toast } from "react-hot-toast"
-import { useSelector } from "react-redux"
 
 import { idempotencyKey } from "../../../../utils/idempotencyKey"
 import { apiConnector } from "../../../../services/apiConnector"
@@ -10,7 +9,6 @@ import Pagination from "../../../Common/Pagination"
 const { CREATE_COUPON_API, GET_ALL_COUPONS_API, SET_COUPON_ACTIVE_API } = couponEndpoints
 
 export default function ManageCoupons() {
-  const { token } = useSelector((state) => state.auth)
   const [coupons, setCoupons] = useState([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({
@@ -31,7 +29,7 @@ export default function ManageCoupons() {
         "GET",
         GET_ALL_COUPONS_API,
         null,
-        { Authorization: `Bearer ${token}` },
+        null,
         { page }
       )
       setCoupons(res?.data?.data || [])
@@ -63,7 +61,6 @@ export default function ManageCoupons() {
         expiresAt: form.expiresAt || undefined,
       }
       const res = await apiConnector("POST", CREATE_COUPON_API, body, {
-        Authorization: `Bearer ${token}`,
         "Idempotency-Key": idempotencyKey("coupon", body),
       })
       if (!res.data.success) throw new Error(res.data.message)
@@ -82,7 +79,7 @@ export default function ManageCoupons() {
         "POST",
         SET_COUPON_ACTIVE_API,
         { couponId: coupon._id, active: !coupon.active },
-        { Authorization: `Bearer ${token}` }
+        null
       )
       fetchCoupons()
     } catch (error) {

@@ -8,7 +8,7 @@ const paymentRecordSchema = new mongoose.Schema(
   {
     orderId: { type: String, required: true, unique: true },
     paymentId: { type: String, default: null },
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "user", required: true, index: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     courses: [{ type: mongoose.Schema.Types.ObjectId, ref: "Course" }], // what was delivered
     amount: { type: Number, required: true }, // rupees kept for those courses
     // Set when part of an order couldn't be delivered: the rest of the money goes back.

@@ -209,7 +209,7 @@ export function logout(navigate) {
     // The refresh cookie identifies the session even if the access token has
     // already expired, so this is always sent.
     const token = getState()?.auth?.token
-    apiConnector("POST", LOGOUT_API, null, token ? { Authorization: `Bearer ${token}` } : {}).catch(() => {})
+    apiConnector("POST", LOGOUT_API, null, token ? null : {}).catch(() => {})
     dispatch(setToken(null))
     dispatch(setUser(null))
     dispatch(resetCart())

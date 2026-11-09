@@ -9,7 +9,13 @@ jest.mock("../utils/imageUploader", () => ({
   uploadImageToCloudinary: jest.fn().mockResolvedValue({ secure_url: "https://example.com/image.png" }),
 }))
 const mockOrders = { create: jest.fn(), fetch: jest.fn() }
-const mockPayments = { refund: jest.fn(), fetchMultipleRefund: jest.fn() }
+// verifyPayment also fetches the payment: by default it's captured, for the order
+// the test just returned from orders.fetch.
+const mockCapturedPayment = async (id) => {
+  const order = await mockOrders.fetch.mock.results.at(-1)?.value
+  return { id, order_id: order?.id, amount: order?.amount, status: "captured" }
+}
+const mockPayments = { refund: jest.fn(), fetchMultipleRefund: jest.fn(), fetch: jest.fn(mockCapturedPayment), capture: jest.fn() }
 jest.mock("../config/razorpay", () => ({ getInstance: () => ({ orders: mockOrders, payments: mockPayments }) }))
 
 const crypto = require("crypto")
@@ -59,6 +65,7 @@ afterEach(async () => {
   await clearTestDb()
   Object.values(mockOrders).forEach((m) => m.mockReset())
   Object.values(mockPayments).forEach((m) => m.mockReset())
+  mockPayments.fetch.mockImplementation(mockCapturedPayment)
   mailSender.mockClear()
   delete process.env.ALLOW_PRIVATE_WEBHOOK_URLS
 })

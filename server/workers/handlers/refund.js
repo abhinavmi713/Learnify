@@ -7,6 +7,7 @@ const { withBreaker, withTimeout } = require("../../utils/resilience")
 const { notifyUser } = require("../../utils/notify")
 const { refundEmail } = require("../../mail/templates/simpleEmails")
 const { recordAudit } = require("../../utils/audit")
+const { runInTransaction } = require("../../utils/transaction")
 
 // Razorpay can take a while or be down; a breaker stops hammering it.
 const callRefund = withBreaker(
@@ -65,12 +66,16 @@ async function handlePartialRefund({ orderId, paymentId, amount, reason }) {
     throw error // the queue retries; after the last attempt it lands in the DLQ for a human
   }
 
-  await PaymentRecord.updateOne(
-    { orderId },
-    { $set: { "partialRefund.status": "refunded", "partialRefund.refundedAt": new Date() } }
-  )
+  // The new status and its audit entry commit together.
+  await runInTransaction(async (session) => {
+    await PaymentRecord.updateOne(
+      { orderId },
+      { $set: { "partialRefund.status": "refunded", "partialRefund.refundedAt": new Date() } },
+      session ? { session } : {}
+    )
+    await recordAudit(null, { action: "payment.partially_refunded", targetType: "payment", targetId: orderId, metadata: { amount, reason }, session: session || undefined })
+  })
   logger.info({ orderId, paymentId, amount }, "partial refund made")
-  await recordAudit(null, { action: "payment.partially_refunded", targetType: "payment", targetId: orderId, metadata: { amount, reason } })
 
   const user = record && (await User.findById(record.user))
   if (user) {
@@ -108,9 +113,11 @@ async function handleRefund(event) {
     }
   }
 
-  await PaymentRecord.updateOne({ orderId }, { $set: { status: "refunded", refundedAt: new Date() } })
+  await runInTransaction(async (session) => {
+    await PaymentRecord.updateOne({ orderId }, { $set: { status: "refunded", refundedAt: new Date() } }, session ? { session } : {})
+    await recordAudit(null, { action: "payment.refunded", targetType: "payment", targetId: orderId, metadata: { amount, reason }, session: session || undefined })
+  })
   logger.info({ orderId, paymentId }, "payment refunded")
-  await recordAudit(null, { action: "payment.refunded", targetType: "payment", targetId: orderId, metadata: { amount, reason } })
 
   const user = record && (await User.findById(record.user))
   if (user) {

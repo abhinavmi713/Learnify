@@ -15,9 +15,7 @@ const {
 
 export async function createQuiz(data, token) {
   try {
-    const response = await apiConnector("POST", CREATE_QUIZ_API, data, {
-      Authorization: `Bearer ${token}`,
-    })
+    const response = await apiConnector("POST", CREATE_QUIZ_API, data, null)
     if (!response?.data?.success) throw new Error(response?.data?.message)
     toast.success("Quiz created")
     return response.data.data
@@ -30,9 +28,7 @@ export async function createQuiz(data, token) {
 
 export async function getInstructorQuizzes(courseId, token) {
   try {
-    const response = await apiConnector("GET", GET_QUIZZES_INSTRUCTOR_API, null, {
-      Authorization: `Bearer ${token}`,
-    }, { courseId })
+    const response = await apiConnector("GET", GET_QUIZZES_INSTRUCTOR_API, null, null, { courseId })
     if (!response?.data?.success) throw new Error("Could not fetch quizzes")
     return response.data.data
   } catch (error) {
@@ -47,7 +43,7 @@ export async function deleteQuiz(quizId, token) {
       "POST",
       DELETE_QUIZ_API,
       { quizId },
-      { Authorization: `Bearer ${token}` }
+      null
     )
     toast.success("Quiz deleted")
     return !!response?.data?.success
@@ -60,9 +56,7 @@ export async function deleteQuiz(quizId, token) {
 
 export async function getStudentQuizzes(courseId, token) {
   try {
-    const response = await apiConnector("GET", GET_QUIZZES_STUDENT_API, null, {
-      Authorization: `Bearer ${token}`,
-    }, { courseId })
+    const response = await apiConnector("GET", GET_QUIZZES_STUDENT_API, null, null, { courseId })
     if (!response?.data?.success) throw new Error("Could not fetch quizzes")
     return response.data.data
   } catch (error) {
@@ -73,9 +67,7 @@ export async function getStudentQuizzes(courseId, token) {
 
 export async function generateQuizDraft(data, token) {
   try {
-    const response = await apiConnector("POST", GENERATE_QUIZ_DRAFT_API, data, {
-      Authorization: `Bearer ${token}`,
-    })
+    const response = await apiConnector("POST", GENERATE_QUIZ_DRAFT_API, data, null)
     if (!response?.data?.success) throw new Error(response?.data?.message)
     return response.data.data
   } catch (error) {
@@ -87,9 +79,7 @@ export async function generateQuizDraft(data, token) {
 
 export async function submitQuiz(data, token) {
   try {
-    const response = await apiConnector("POST", SUBMIT_QUIZ_API, data, {
-      Authorization: `Bearer ${token}`,
-    })
+    const response = await apiConnector("POST", SUBMIT_QUIZ_API, data, null)
     if (!response?.data?.success) throw new Error(response?.data?.message)
     return response.data
   } catch (error) {

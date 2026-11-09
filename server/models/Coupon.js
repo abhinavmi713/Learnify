@@ -27,6 +27,19 @@ const couponSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // Uses held for checkouts in progress (M17). A limited coupon is reserved when
+    // the order is created and turned into a use when it's paid, so the limit is
+    // checked against used + reserved, not just used. Each expires on its own.
+    reservations: {
+      type: [
+        {
+          user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+          expiresAt: { type: Date, required: true },
+          _id: false,
+        },
+      ],
+      default: [],
+    },
     // How many orders one student may use it on. null = no per-student limit.
     perUserLimit: {
       type: Number,
@@ -42,7 +55,7 @@ const couponSchema = new mongoose.Schema(
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "user",
+      ref: "User",
     },
   },
   { timestamps: true }

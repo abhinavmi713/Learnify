@@ -9,7 +9,7 @@ const {
   getQuizzesForStudent,
   submitQuizAttempt,
 } = require("../controllers/Quiz")
-const { auth, isInstructor, isStudent } = require("../middleware/auth")
+const { auth, requirePermission } = require("../middleware/auth")
 const { quizIdSchema } = require("../validators/miscValidators")
 const { aiLimiter } = require("../middleware/rateLimiter")
 const { validate } = require("../middleware/validate")
@@ -19,18 +19,18 @@ const {
   submitQuizSchema,
 } = require("../validators/quizValidators")
 
-router.post("/create", auth, isInstructor, validate(createQuizSchema), createQuiz)
+router.post("/create", auth, requirePermission("quiz:author"), validate(createQuizSchema), createQuiz)
 router.post(
   "/generate-draft",
   auth,
-  isInstructor,
+  requirePermission("quiz:author"),
   aiLimiter,
   validate(generateQuizDraftSchema),
   generateQuizDraft
 )
-router.get("/instructor", auth, isInstructor, getQuizzesForInstructor)
-router.post("/delete", auth, isInstructor, validate(quizIdSchema), deleteQuiz)
-router.get("/student", auth, isStudent, getQuizzesForStudent)
-router.post("/submit", auth, isStudent, validate(submitQuizSchema), submitQuizAttempt)
+router.get("/instructor", auth, requirePermission("quiz:author"), getQuizzesForInstructor)
+router.post("/delete", auth, requirePermission("quiz:author"), validate(quizIdSchema), deleteQuiz)
+router.get("/student", auth, requirePermission("course:learn"), getQuizzesForStudent)
+router.post("/submit", auth, requirePermission("course:learn"), validate(submitQuizSchema), submitQuizAttempt)
 
 module.exports = router

@@ -47,8 +47,7 @@ export async function BuyCourse(
         courses,
         ...(couponCode ? { couponCode } : {}),
       },
-      {
-        Authorization: `Bearer ${token}`,
+      {
         // Same cart + coupon = same key: a double click creates one order.
         "Idempotency-Key": idempotencyKey("checkout", user_details?._id || "", [...courses].sort(), couponCode || ""),
       }
@@ -118,8 +117,7 @@ async function verifyPayment(bodyData, token, navigate, dispatch) {
   dispatch(setPaymentLoading(true))
   try {
     const send = () =>
-      apiConnector("POST", COURSE_VERIFY_API, bodyData, {
-        Authorization: `Bearer ${token}`,
+      apiConnector("POST", COURSE_VERIFY_API, bodyData, {
         // The payment id is unique, so retries of this verification are replayed.
         ...(bodyData?.razorpay_payment_id ? { "Idempotency-Key": `verify-${bodyData.razorpay_payment_id}` } : {}),
       })

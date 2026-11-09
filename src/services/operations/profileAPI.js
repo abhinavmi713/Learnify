@@ -16,9 +16,7 @@ export function getUserDetails(token, navigate) {
   return async (dispatch) => {
     dispatch(setLoading(true))
     try {
-      const response = await apiConnector("GET", GET_USER_DETAILS_API, null, {
-        Authorization: `Bearer ${token}`,
-      })
+      const response = await apiConnector("GET", GET_USER_DETAILS_API, null, null)
       devLog("GET_USER_DETAILS API RESPONSE............", response)
 
       if (!response.data.success) {
@@ -45,9 +43,7 @@ export async function getUserEnrolledCourses(token) {
       "GET",
       GET_USER_ENROLLED_COURSES_API,
       null,
-      {
-        Authorization: `Bearer ${token}`,
-      }
+      null
     )
     // devLog(
     //   "GET_USER_ENROLLED_COURSES_API API RESPONSE............",
@@ -67,9 +63,7 @@ export async function getUserEnrolledCourses(token) {
 
 export async function getMyBadges(token) {
   try {
-    const response = await apiConnector("GET", profileEndpoints.GET_MY_BADGES_API, null, {
-      Authorization: `Bearer ${token}`,
-    })
+    const response = await apiConnector("GET", profileEndpoints.GET_MY_BADGES_API, null, null)
     return response?.data?.data || []
   } catch (error) {
     devLog("GET_MY_BADGES_API ERROR............", error)
@@ -80,9 +74,7 @@ export async function getMyBadges(token) {
 export async function getInstructorData(token) {
   let result = { courses: [], enrollmentTrend: [] }
   try {
-    const response = await apiConnector("GET", GET_INSTRUCTOR_DATA_API, null, {
-      Authorization: `Bearer ${token}`,
-    })
+    const response = await apiConnector("GET", GET_INSTRUCTOR_DATA_API, null, null)
     devLog("GET_INSTRUCTOR_DATA_API API RESPONSE............", response)
     result = {
       courses: response?.data?.courses || [],

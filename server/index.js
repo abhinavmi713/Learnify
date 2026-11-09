@@ -67,14 +67,16 @@ async function shutdown(signal) {
   logger.info({ signal }, "shutting down");
   // If a connection hangs, don't wait forever.
   setTimeout(() => process.exit(1), 10000).unref();
-  server.close(async () => {
-    relay.stopRelay();
-    await closeRealtime();
-    await rabbit.close();
-    await mongoose.disconnect();
-    await closeRedis();
-    process.exit(0);
-  });
+  relay.stopRelay();
+  // WebSockets first: server.close waits for every open connection, and a socket
+  // stays open until someone closes it. io.close disconnects the sockets and then
+  // closes the HTTP server, which lets in-flight requests finish.
+  await closeRealtime();
+  if (server.listening) await new Promise((resolve) => server.close(() => resolve()));
+  await rabbit.close();
+  await mongoose.disconnect();
+  await closeRedis();
+  process.exit(0);
 }
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));

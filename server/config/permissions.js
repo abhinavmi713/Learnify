@@ -12,6 +12,7 @@ const ROLE_PERMISSIONS = {
     "category:manage",
     "analytics:platform",
     "audit:read",
+    "learningpath:manage",
   ],
 }
 

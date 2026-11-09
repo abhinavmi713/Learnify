@@ -66,6 +66,14 @@ export function refreshSession() {
 
 export function installSessionHandling(handlers) {
   session = { ...session, ...handlers };
+  // Every request carries the current access token, so call sites don't pass it.
+  // A caller can still set its own Authorization header, which is left alone.
+  axiosInstance.interceptors.request.use((config) => {
+    const token = session.getToken();
+    const has = config.headers?.get?.("Authorization") || config.headers?.Authorization;
+    if (token && !has) config.headers.Authorization = `Bearer ${token}`;
+    return config;
+  });
   axiosInstance.interceptors.response.use(undefined, async (error) => {
     const original = error.config;
     const status = error?.response?.status;

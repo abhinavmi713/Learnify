@@ -5,7 +5,7 @@ const notificationSchema = new mongoose.Schema(
     user: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
-      ref: "user",
+      ref: "User",
       // Indexed through the compound indexes below (user is their prefix).
     },
     message: {

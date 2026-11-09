@@ -13,9 +13,7 @@ const {
 
 export async function createLiveClass(data, token) {
   try {
-    const response = await apiConnector("POST", CREATE_LIVE_CLASS_API, data, {
-      Authorization: `Bearer ${token}`,
-    })
+    const response = await apiConnector("POST", CREATE_LIVE_CLASS_API, data, null)
     if (!response?.data?.success) throw new Error(response?.data?.message)
     toast.success("Live class scheduled")
     return response.data.data
@@ -28,9 +26,7 @@ export async function createLiveClass(data, token) {
 
 export async function getInstructorLiveClasses(token) {
   try {
-    const response = await apiConnector("GET", GET_INSTRUCTOR_LIVE_CLASSES_API, null, {
-      Authorization: `Bearer ${token}`,
-    })
+    const response = await apiConnector("GET", GET_INSTRUCTOR_LIVE_CLASSES_API, null, null)
     return response?.data?.data || []
   } catch (error) {
     devLog("GET_INSTRUCTOR_LIVE_CLASSES_API ERROR............", error)
@@ -40,9 +36,7 @@ export async function getInstructorLiveClasses(token) {
 
 export async function getStudentLiveClasses(token) {
   try {
-    const response = await apiConnector("GET", GET_STUDENT_LIVE_CLASSES_API, null, {
-      Authorization: `Bearer ${token}`,
-    })
+    const response = await apiConnector("GET", GET_STUDENT_LIVE_CLASSES_API, null, null)
     return response?.data?.data || []
   } catch (error) {
     devLog("GET_STUDENT_LIVE_CLASSES_API ERROR............", error)
@@ -56,7 +50,7 @@ export async function deleteLiveClass(liveClassId, token) {
       "POST",
       DELETE_LIVE_CLASS_API,
       { liveClassId },
-      { Authorization: `Bearer ${token}` }
+      null
     )
     toast.success("Live class cancelled")
     return !!response?.data?.success

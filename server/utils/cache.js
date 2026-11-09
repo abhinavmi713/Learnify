@@ -1,3 +1,4 @@
+const crypto = require("crypto")
 const { cacheRequests } = require("./metrics")
 const NodeCache = require("node-cache")
 const { getRedis } = require("../config/redis")
@@ -123,19 +124,28 @@ async function waitForValue(key, maxMs = 1500, stepMs = 40) {
 // Express middleware caching a GET handler's successful JSON response.
 // The parts of the URL that change the response. With `params`, anything else is
 // ignored, so ?junk=1 can't force a miss.
-function cacheUrl(req, params) {
+// With `body`, a POST is cached by a hash of its (already validated) body, keys
+// sorted so the same search in a different key order is the same entry.
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical)
+  if (value && typeof value === "object") return Object.fromEntries(Object.keys(value).sort().map((k) => [k, canonical(value[k])]))
+  return value
+}
+
+function cacheUrl(req, params, body) {
+  if (body) return `${req.baseUrl}${req.path}#${crypto.createHash("sha256").update(JSON.stringify(canonical(req.body ?? null))).digest("hex")}`
   if (!params) return req.originalUrl
   const kept = params.filter((p) => req.query[p] !== undefined).map((p) => `${p}=${req.query[p]}`)
   return `${req.baseUrl}${req.path}?${kept.join("&")}`
 }
 
-function cacheResponse(ttlSeconds = 60, { namespace = CATALOG, params } = {}) {
+function cacheResponse(ttlSeconds = 60, { namespace = CATALOG, params, body = false } = {}) {
   return async (req, res, next) => {
-    if (req.method !== "GET") return next()
+    if (req.method !== "GET" && !(body && req.method === "POST")) return next()
 
     let key
     try {
-      key = `cache:${namespace}:${await currentVersion(namespace)}:${cacheUrl(req, params)}`
+      key = `cache:${namespace}:${await currentVersion(namespace)}:${cacheUrl(req, params, body)}`
       const hit = await storeGet(key)
       if (hit !== undefined) {
         stats.hits++

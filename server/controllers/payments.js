@@ -3,7 +3,7 @@ const mongoose = require("mongoose")
 const { getInstance } = require("../config/razorpay")
 const Course = require("../models/Course")
 const logger = require("../utils/logger")
-const { findRedeemableCoupon, computeDiscount } = require("../utils/coupon")
+const { findRedeemableCoupon, computeDiscount, reserveCouponUse, releaseCouponReservation } = require("../utils/coupon")
 const { fulfillOrder, compensateFailedFulfillment, FulfillmentError } = require("../utils/orderFulfillment")
 const PaymentRecord = require("../models/PaymentRecord")
 const User = require("../models/User")
@@ -46,8 +46,14 @@ async function handleExternalRefund(payload) {
       await Course.updateMany({ _id: { $in: record.courses } }, { $pull: { studentsEnroled: record.user } }, opts)
       await User.updateOne({ _id: record.user }, { $pullAll: { courses: record.courses } }, opts)
     }
+    await recordAudit(null, {
+      action: "payment.refunded_externally",
+      targetType: "payment",
+      targetId: record.orderId,
+      metadata: { refundId: refund.id, amountPaise: refund.amount, full },
+      session: session || undefined,
+    })
   })
-  await recordAudit(null, { action: "payment.refunded_externally", targetType: "payment", targetId: record.orderId, metadata: { refundId: refund.id, amountPaise: refund.amount, full } })
   return { recorded: true, enrollmentRemoved: full }
 }
 
@@ -56,9 +62,20 @@ async function handleDispute(payload) {
   const dispute = payload?.dispute?.entity
   const paymentId = dispute?.payment_id || payload?.payment?.entity?.id
   if (!paymentId) return { ignored: true }
-  const record = await PaymentRecord.findOneAndUpdate({ paymentId }, { $set: { disputedAt: new Date() } })
+  const record = await runInTransaction(async (session) => {
+    const found = await PaymentRecord.findOneAndUpdate({ paymentId }, { $set: { disputedAt: new Date() } }, session ? { session } : {})
+    if (!found) return null
+    await recordAudit(null, {
+      action: "payment.disputed",
+      outcome: "failure",
+      targetType: "payment",
+      targetId: found.orderId,
+      metadata: { disputeId: dispute?.id, reason: dispute?.reason_code },
+      session: session || undefined,
+    })
+    return found
+  })
   if (!record) return { ignored: true }
-  await recordAudit(null, { action: "payment.disputed", outcome: "failure", targetType: "payment", targetId: record.orderId, metadata: { disputeId: dispute?.id, reason: dispute?.reason_code } })
   return { recorded: true }
 }
 
@@ -123,6 +140,11 @@ exports.capturePayment = async (req, res) => {
     if (error) return res.status(400).json({ success: false, message: error })
     discount = computeDiscount(coupon, subtotal)
     appliedCouponCode = coupon.code
+    // Hold one use while the student pays, so a limited coupon can't be spent
+    // more times than allowed by shoppers checking out at the same moment.
+    if (!(await reserveCouponUse(coupon.code, userId))) {
+      return res.status(400).json({ success: false, message: "This coupon has reached its usage limit" })
+    }
   }
   const finalAmount = subtotal - discount
 
@@ -161,6 +183,8 @@ exports.capturePayment = async (req, res) => {
     })
     return res.json({ success: true, data: order })
   } catch (error) {
+    // No order, so nothing will use the held coupon.
+    if (appliedCouponCode) await releaseCouponReservation(appliedCouponCode, userId).catch(() => {})
     if (error instanceof FulfillmentError) {
       return res.status(409).json({ success: false, message: "These courses are not available" })
     }
@@ -196,6 +220,17 @@ exports.verifyPayment = async (req, res) => {
       const claimed = [...new Set(courses.map(String))].sort().join(",")
       if (claimed !== [...notes.courseIds].sort().join(",")) return fail()
     }
+
+    // The signature proves Razorpay issued this payment id for this order, not that
+    // the money was taken. On an account that captures manually, a payment can be
+    // only "authorized", and Razorpay releases it after a few days if nobody
+    // captures it. So enroll only on a captured payment, capturing it here if needed.
+    let payment = await getInstance().payments.fetch(razorpay_payment_id)
+    if (payment.order_id !== razorpay_order_id || Number(payment.amount) !== Number(order.amount)) return fail()
+    if (payment.status === "authorized") {
+      payment = await getInstance().payments.capture(razorpay_payment_id, order.amount, order.currency || "INR")
+    }
+    if (payment.status !== "captured") return fail()
 
     const outcome = await fulfillOrRefund({
       orderId: razorpay_order_id,

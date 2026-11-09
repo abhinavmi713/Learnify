@@ -9,7 +9,7 @@ const mongoose = require("mongoose")
 // family (every session descended from that login) is revoked.
 const refreshTokenSchema = new mongoose.Schema(
   {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "user", required: true, index: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     family: { type: String, required: true, index: true },
     tokenHash: { type: String, required: true, unique: true },
     // tokenVersion of the user when issued: a password change ends every session.

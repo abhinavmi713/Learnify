@@ -1,7 +1,7 @@
 const express = require("express")
 const { uploadImage } = require("../middleware/upload")
 const router = express.Router()
-const { auth, isInstructor } = require("../middleware/auth")
+const { auth, requirePermission } = require("../middleware/auth")
 const { validate } = require("../middleware/validate")
 const { audited } = require("../utils/audit")
 const { updateProfileSchema, courseIdSchema } = require("../validators/miscValidators")
@@ -30,7 +30,7 @@ router.get("/getUserDetails", auth, getAllUserDetails)
 // Get Enrolled Courses
 router.get("/getEnrolledCourses", auth, getEnrolledCourses)
 router.put("/updateDisplayPicture", auth, uploadImage, updateDisplayPicture)
-router.get("/instructorDashboard", auth, isInstructor, instructorDashboard)
+router.get("/instructorDashboard", auth, requirePermission("analytics:own"), instructorDashboard)
 router.get("/badges", auth, getMyBadges)
 
 // ********************************************************************************************************

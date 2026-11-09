@@ -56,7 +56,7 @@ const {
   updateWatchPosition,
 } = require("../controllers/courseProgress")
 // Importing Middlewares
-const { optionalAuth, auth, isInstructor, isStudent, requirePermission, requireAdmin2FA } = require("../middleware/auth")
+const { optionalAuth, auth, requirePermission, requireAdmin2FA } = require("../middleware/auth")
 const { audited } = require("../utils/audit")
 const { idempotent } = require("../middleware/idempotency")
 const { aiLimiter } = require("../middleware/rateLimiter")
@@ -79,25 +79,25 @@ const {
 // Courses can Only be Created by Instructors
 // Validation runs before the idempotency check, so a rejected request is not
 // stored against its key and the corrected one can be sent with the same key.
-router.post("/createCourse", auth, isInstructor, uploadImage, validate(createCourseSchema), idempotent(), createCourse)
+router.post("/createCourse", auth, requirePermission("course:author"), uploadImage, validate(createCourseSchema), idempotent(), createCourse)
 // Edit Course routes
-router.post("/editCourse", auth, isInstructor, uploadImage, emitContentChanged(), validate(editCourseSchema), editCourse)
+router.post("/editCourse", auth, requirePermission("course:author"), uploadImage, emitContentChanged(), validate(editCourseSchema), editCourse)
 //Add a Section to a Course
-router.post("/addSection", auth, isInstructor, emitContentChanged(), validate(addSectionSchema), createSection)
+router.post("/addSection", auth, requirePermission("course:author"), emitContentChanged(), validate(addSectionSchema), createSection)
 // Update a Section
-router.post("/updateSection", auth, isInstructor, emitContentChanged(), validate(updateSectionSchema), updateSection)
+router.post("/updateSection", auth, requirePermission("course:author"), emitContentChanged(), validate(updateSectionSchema), updateSection)
 // Delete a Section
-router.post("/deleteSection", auth, isInstructor, emitContentChanged(), validate(deleteSectionSchema), deleteSection)
+router.post("/deleteSection", auth, requirePermission("course:author"), emitContentChanged(), validate(deleteSectionSchema), deleteSection)
 // Edit Sub Section
-router.post("/updateSubSection", auth, isInstructor, uploadVideo, emitContentChanged(), validate(updateSubSectionSchema), updateSubSection)
+router.post("/updateSubSection", auth, requirePermission("course:author"), uploadVideo, emitContentChanged(), validate(updateSubSectionSchema), updateSubSection)
 // Delete Sub Section
-router.post("/deleteSubSection", auth, isInstructor, emitContentChanged(), validate(deleteSubSectionSchema), deleteSubSection)
+router.post("/deleteSubSection", auth, requirePermission("course:author"), emitContentChanged(), validate(deleteSubSectionSchema), deleteSubSection)
 // Add a Sub Section to a Section
-router.post("/addSubSection", auth, isInstructor, uploadVideo, emitContentChanged(), validate(addSubSectionSchema), createSubSection)
+router.post("/addSubSection", auth, requirePermission("course:author"), uploadVideo, emitContentChanged(), validate(addSubSectionSchema), createSubSection)
 // Signed params for a direct browser -> Cloudinary video upload
-router.post("/uploadSignature", auth, isInstructor, getUploadSignature)
+router.post("/uploadSignature", auth, requirePermission("course:author"), getUploadSignature)
 // Get all Courses Under a Specific Instructor
-router.get("/getInstructorCourses", auth, isInstructor, getInstructorCourses)
+router.get("/getInstructorCourses", auth, requirePermission("course:author"), getInstructorCourses)
 // Get all Registered Courses (cached briefly — this list changes rarely
 // relative to how often it's fetched)
 // Public, identical for everyone, and fine to be a minute old: let browsers and
@@ -108,23 +108,25 @@ const publicCache = (seconds) => (req, res, next) => {
 }
 router.get("/getAllCourses", publicCache(30), cacheResponse(60, { params: ["limit", "before"] }), getAllCourses)
 // Search & filter courses (text search, category, price range, rating, sort, pagination)
-router.post("/searchCourses", validate(searchCoursesSchema), searchCourses)
+// Popular searches repeat, so results are cached for 30 s. They share the
+// catalog's version, so publishing or changing a course clears them at once.
+router.post("/searchCourses", validate(searchCoursesSchema), cacheResponse(30, { body: true }), searchCourses)
 // Search-box autocomplete: GET /suggest?q=jav
 router.get("/suggest", suggestCourses)
 // AI-assisted course description/benefits draft for instructors
-router.post("/generateDescription", auth, isInstructor, aiLimiter, validate(generateDescriptionSchema), generateCourseDescription)
+router.post("/generateDescription", auth, requirePermission("course:author"), aiLimiter, validate(generateDescriptionSchema), generateCourseDescription)
 // Content-based "recommended for you" courses for a logged-in student
-router.get("/recommendations", auth, isStudent, getRecommendedCourses)
+router.get("/recommendations", auth, requirePermission("course:learn"), getRecommendedCourses)
 // Get Details for a Specific Courses
 router.post("/getCourseDetails", optionalAuth, validate(courseIdSchema), getCourseDetails)
 // Get Details for a Specific Courses
 router.post("/getFullCourseDetails", auth, validate(courseIdSchema), getFullCourseDetails)
 // To Update Course Progress
-router.post("/updateCourseProgress", auth, isStudent, validate(lectureProgressSchema), updateCourseProgress)
+router.post("/updateCourseProgress", auth, requirePermission("course:learn"), validate(lectureProgressSchema), updateCourseProgress)
 // To save the student's current playback position (for resume-on-return)
-router.post("/updateWatchPosition", auth, isStudent, validate(watchPositionSchema), updateWatchPosition)
+router.post("/updateWatchPosition", auth, requirePermission("course:learn"), validate(watchPositionSchema), updateWatchPosition)
 // Delete a Course
-router.delete("/deleteCourse", auth, audited("course.archive", (req) => ({ targetType: "course", targetId: req.body?.courseId })), isInstructor, emitContentChanged(), validate(courseIdSchema), deleteCourse)
+router.delete("/deleteCourse", auth, audited("course.archive", (req) => ({ targetType: "course", targetId: req.body?.courseId })), requirePermission("course:author"), emitContentChanged(), validate(courseIdSchema), deleteCourse)
 // ********************************************************************************************************
 //                                      Category routes (Only by Admin)
 // ********************************************************************************************************
@@ -140,7 +142,7 @@ router.post("/getCategoryPageDetails", validate(categoryIdSchema), categoryPageD
 // ********************************************************************************************************
 //                                      Rating and Review
 // ********************************************************************************************************
-router.post("/createRating", auth, isStudent, validate(createRatingSchema), createRating)
+router.post("/createRating", auth, requirePermission("review:write"), validate(createRatingSchema), createRating)
 router.get("/getAverageRating", getAverageRating)
 router.get("/getReviews", getAllRatingReview)
 

@@ -10,9 +10,7 @@ const { UPLOAD_SIGNATURE_API } = courseEndpoints
 // through the API (which hits request-size/timeout limits on most hosts).
 // Resolves with { url, duration }; `onProgress` receives 0-100.
 export async function uploadVideoDirect(file, token, onProgress) {
-  const sig = await apiConnector("POST", UPLOAD_SIGNATURE_API, null, {
-    Authorization: `Bearer ${token}`,
-  })
+  const sig = await apiConnector("POST", UPLOAD_SIGNATURE_API, null, null)
   const { cloudName, apiKey, timestamp, folder, signature } = sig.data.data
 
   const form = new FormData()

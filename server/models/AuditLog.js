@@ -6,7 +6,7 @@ const auditLogSchema = new mongoose.Schema(
   {
     action: { type: String, required: true },
     outcome: { type: String, enum: ["success", "failure"], default: "success" },
-    actor: { type: mongoose.Schema.Types.ObjectId, ref: "user", default: null },
+    actor: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
     actorRole: { type: String, default: null },
     actorEmail: { type: String, default: null },
     targetType: { type: String, default: null },
@@ -48,5 +48,17 @@ for (const op of [
 auditLogSchema.pre("save", function () {
   if (!this.isNew) immutable()
 })
+
+// bulkWrite has no query middleware, so it's guarded here: inserts only.
+auditLogSchema.statics.bulkWrite = function (ops, options) {
+  if (!Array.isArray(ops) || ops.some((op) => Object.keys(op || {}).some((kind) => kind !== "insertOne"))) {
+    return Promise.reject(new Error("Audit log entries are append-only"))
+  }
+  return mongoose.Model.bulkWrite.call(this, ops, options)
+}
+
+// These hooks stop accidents in application code. They can't stop someone using
+// the native driver or a database shell: for that, connect with a database user
+// whose role can only insert into this collection (scripts/createAppRole.js).
 
 module.exports = mongoose.model("AuditLog", auditLogSchema)

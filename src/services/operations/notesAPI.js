@@ -8,9 +8,7 @@ const { CREATE_NOTE_API, GET_NOTES_API, DELETE_NOTE_API } = notesEndpoints
 
 export async function getNotes(subsectionId, token) {
   try {
-    const response = await apiConnector("GET", GET_NOTES_API, null, {
-      Authorization: `Bearer ${token}`,
-    }, { subsectionId })
+    const response = await apiConnector("GET", GET_NOTES_API, null, null, { subsectionId })
     if (!response?.data?.success) throw new Error("Could not fetch notes")
     return response.data.data
   } catch (error) {
@@ -21,9 +19,7 @@ export async function getNotes(subsectionId, token) {
 
 export async function createNote(data, token) {
   try {
-    const response = await apiConnector("POST", CREATE_NOTE_API, data, {
-      Authorization: `Bearer ${token}`,
-    })
+    const response = await apiConnector("POST", CREATE_NOTE_API, data, null)
     if (!response?.data?.success) throw new Error(response?.data?.message || "Could not add note")
     return response.data.data
   } catch (error) {
@@ -39,7 +35,7 @@ export async function deleteNote(noteId, token) {
       "POST",
       DELETE_NOTE_API,
       { noteId },
-      { Authorization: `Bearer ${token}` }
+      null
     )
     return !!response?.data?.success
   } catch (error) {

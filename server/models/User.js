@@ -74,7 +74,7 @@ const userSchema = new mongoose.Schema(
       },
       select: false,
       default: () => ({}),
-    },
+    },
     additionalDetails: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
@@ -85,7 +85,7 @@ const userSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: "Course",
       },
-    ],
+    ],
     // Hashed (never plaintext) single-use token used for the forgot-password flow.
     resetPasswordToken: {
       type: String,
@@ -99,7 +99,7 @@ const userSchema = new mongoose.Schema(
     courseProgress: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "courseProgress",
+        ref: "CourseProgress",
       },
     ],
     wishlist: [
@@ -128,5 +128,5 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
-// Export the Mongoose model for the user schema, using the name "user"
-module.exports = mongoose.model("user", userSchema)
+// Export the Mongoose model. The collection name is still "users" (Mongoose lowercases and pluralises).
+module.exports = mongoose.model("User", userSchema)

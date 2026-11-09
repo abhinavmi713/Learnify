@@ -4,7 +4,7 @@ import { apiConnector } from "../apiConnector"
 import { webhookEndpoints } from "../apis"
 
 const { WEBHOOKS_API } = webhookEndpoints
-const auth = (token) => ({ Authorization: `Bearer ${token}` })
+const auth = (token) => (null)
 const fail = (error, fallback) => {
   toast.error(error?.response?.data?.message || fallback)
   return null

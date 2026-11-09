@@ -39,6 +39,7 @@ set; Docker Compose starts one. API documentation is served at `/api/docs` outsi
 | `npm test` | Run the test suite |
 | `npm run seed:demo` | Add demo data to a development database (refuses in production) |
 | `npm run db:indexes` | Make every collection's indexes match its schema (run on deploy) |
+| `npm run db:app-role` | Create a database role and user that can only insert into the audit log |
 | `npm run outbox:status` | Show recent outbox events and the backlog |
 | `npm run outbox:requeue` | Requeue outbox events the relay gave up on |
 | `npm run dlq:replay -- <queue>` | Move dead-lettered messages back to their queue |

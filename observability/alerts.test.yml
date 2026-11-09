@@ -1,0 +1,104 @@
+# Unit tests for alerts.yml. Run with:
+#   docker run --rm -v "$PWD/observability:/w" -w /w --entrypoint promtool prom/prometheus:v2.55.1 test rules alerts.test.yml
+# CI runs them on every push (job "alerts").
+rule_files:
+  - alerts.yml
+evaluation_interval: 1m
+
+tests:
+  # 10% of requests failing for 15 minutes.
+  - interval: 1m
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/api/v1/x",method="GET",status_code="200"}'
+        values: '0+90x15'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/x",method="GET",status_code="500"}'
+        values: '0+10x15'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HighErrorRate
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations: { summary: "More than 5% of API requests are failing" }
+
+  # 1% failing is below the threshold.
+  - interval: 1m
+    input_series:
+      - series: 'http_request_duration_seconds_count{route="/api/v1/x",method="GET",status_code="200"}'
+        values: '0+99x15'
+      - series: 'http_request_duration_seconds_count{route="/api/v1/x",method="GET",status_code="500"}'
+        values: '0+1x15'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HighErrorRate
+        exp_alerts: []
+
+  # The API stops answering scrapes: only up tells us.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="learnify-api",instance="api:4000"}'
+        values: '1 1 1 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: ServiceDown
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: ServiceDown
+        exp_alerts:
+          - exp_labels: { severity: page, job: learnify-api, instance: "api:4000" }
+            exp_annotations: { summary: "learnify-api on api:4000 is not responding to scrapes" }
+
+  # Every request takes about 2 s for 15 minutes.
+  - interval: 1m
+    input_series:
+      - series: 'http_request_duration_seconds_bucket{route="/api/v1/x",le="1"}'
+        values: '0x15'
+      - series: 'http_request_duration_seconds_bucket{route="/api/v1/x",le="2.5"}'
+        values: '0+100x15'
+      - series: 'http_request_duration_seconds_bucket{route="/api/v1/x",le="+Inf"}'
+        values: '0+100x15'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: SlowRequests
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations: { summary: "p95 API latency above 1s" }
+
+  - interval: 1m
+    input_series:
+      - series: 'learnify_outbox_failed_events'
+        values: '0 0 2 2 2 2'
+      - series: 'learnify_outbox_oldest_pending_age_seconds'
+        values: '400+60x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: OutboxEventsFailed
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: "2 outbox event(s) gave up and will not be published"
+              description: "Fix the cause, then run npm run outbox:requeue."
+      - eval_time: 8m
+        alertname: OutboxLagging
+        exp_alerts:
+          - exp_labels: { severity: page }
+            exp_annotations: { summary: "Events are not being published (oldest pending event older than 5 minutes)" }
+
+  - interval: 1m
+    input_series:
+      - series: 'rabbitmq_queue_messages{queue="email.dlq"}'
+        values: '0 0 3 3 3'
+      - series: 'rabbitmq_queue_messages{queue="email"}'
+        values: '50 50 50 50 50'
+      - series: 'learnify_circuit_breaker_open{breaker="elasticsearch-search"}'
+        values: '0 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: DeadLetters
+        exp_alerts:
+          - exp_labels: { severity: ticket }
+            exp_annotations: { summary: "Messages in a dead-letter queue need attention" }
+      - eval_time: 4m
+        alertname: CircuitOpen
+        exp_alerts:
+          - exp_labels: { severity: ticket, breaker: elasticsearch-search }
+            exp_annotations: { summary: "Circuit breaker elasticsearch-search is open (dependency failing)" }

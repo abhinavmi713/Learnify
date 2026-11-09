@@ -19,6 +19,7 @@ const relay = require("../events/relay")
 const logger = require("../utils/logger")
 const { consumers } = require("./consumers")
 const { processEvent } = require("./runner")
+const { workerHealth, startHeartbeat } = require("./health")
 
 // Registers every consumer with the broker. Also used by the API when it is
 // told to host the worker itself (RUN_WORKER_IN_API) for simple local setups.
@@ -32,12 +33,19 @@ async function startConsumers() {
   }
 }
 
-// The worker has no HTTP API, so Prometheus scrapes it on its own port.
+// The worker has no HTTP API, so Prometheus scrapes it on its own port, which
+// also answers /health.
 function startMetricsServer() {
   const port = Number(process.env.WORKER_METRICS_PORT || 9464)
   if (!port) return null
   const { register } = require("../utils/metrics")
   const server = http.createServer(async (req, res) => {
+    if (req.url === "/health") {
+      const health = workerHealth()
+      res.statusCode = health.status === "ok" ? 200 : 503
+      res.setHeader("Content-Type", "application/json")
+      return res.end(JSON.stringify(health))
+    }
     if (req.url !== "/metrics") {
       res.statusCode = 404
       return res.end()
@@ -62,6 +70,7 @@ async function main() {
   // Also publish pending outbox rows, so events still flow if the API is down.
   if (process.env.OUTBOX_RELAY !== "0") relay.startRelay()
   const metricsServer = startMetricsServer()
+  const stopHeartbeat = startHeartbeat()
   logger.info("worker running")
 
   let stopping = false
@@ -71,6 +80,7 @@ async function main() {
     logger.info({ signal }, "worker shutting down")
     setTimeout(() => process.exit(1), 10000).unref()
     relay.stopRelay()
+    stopHeartbeat()
     metricsServer?.close()
     await rabbit.close()
     await mongoose.disconnect()

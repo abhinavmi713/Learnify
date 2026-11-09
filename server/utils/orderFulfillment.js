@@ -8,6 +8,7 @@ const logger = require("./logger")
 const { runInTransaction } = require("./transaction")
 const { enqueueEvent } = require("../events/outbox")
 const { EVENTS } = require("../events/types")
+const { recordAudit } = require("./audit")
 
 // Raised when a paid order cannot be delivered (e.g. every course in it has been
 // removed since checkout). The caller compensates by refunding the payment.
@@ -112,7 +113,10 @@ async function fulfillOrder({ orderId, paymentId, userId, courseIds, couponCode,
         opts
       )
 
-      if (couponCode) await Coupon.updateOne({ code: couponCode }, { $inc: { usedCount: 1 } }, opts)
+      // The checkout's reservation becomes a use, in the same transaction.
+      if (couponCode) {
+        await Coupon.updateOne({ code: couponCode }, { $inc: { usedCount: 1 }, $pull: { reservations: { user: userId } } }, opts)
+      }
 
       if (newlyEnrolled.length > 0) {
         await enqueueEvent(
@@ -135,6 +139,15 @@ async function fulfillOrder({ orderId, paymentId, userId, courseIds, couponCode,
           { session }
         )
       }
+      // Recorded in the same transaction: an order is never delivered without its entry.
+      await recordAudit(null, {
+        action: "order.fulfilled",
+        actor: { _id: userId },
+        targetType: "payment",
+        targetId: orderId,
+        metadata: { amount, source, courses: newlyEnrolled.map((c) => String(c._id)), couponCode: couponCode || null },
+        session: session || undefined,
+      })
       return { alreadyProcessed: false, partialRefund }
     })
     // Counted after commit: the callback above can run again on a transient retry.
@@ -178,6 +191,15 @@ async function compensateFailedFulfillment({ orderId, paymentId, userId, courseI
         { orderId, paymentId, userId: String(userId), amount, reason },
         { session }
       )
+      await recordAudit(null, {
+        action: "order.refund_queued",
+        outcome: "failure",
+        actor: { _id: userId },
+        targetType: "payment",
+        targetId: orderId,
+        metadata: { amount, reason: String(reason || "").slice(0, 300) },
+        session: session || undefined,
+      })
     })
     logger.warn({ orderId, paymentId, reason }, "fulfillment failed; refund queued")
     return { queued: true }

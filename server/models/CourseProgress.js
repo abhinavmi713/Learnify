@@ -7,7 +7,7 @@ const courseProgress = new mongoose.Schema({
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "user",
+    ref: "User",
   },
   completedVideos: [
     {
@@ -43,4 +43,4 @@ courseProgress.index({ courseID: 1, userId: 1 }, { unique: true })
 // courseID, so it cannot serve a query on userId alone.
 courseProgress.index({ userId: 1 })
 
-module.exports = mongoose.model("courseProgress", courseProgress)
+module.exports = mongoose.model("CourseProgress", courseProgress)

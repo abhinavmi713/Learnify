@@ -1,7 +1,7 @@
 # Learnify AI service.
 #   docker build -t learnify-ai ./ai-service
 #   docker run --env-file ai-service/.env -p 5001:5001 learnify-ai
-FROM node:20-alpine
+FROM node:22-alpine
 
 ENV NODE_ENV=production
 WORKDIR /app
